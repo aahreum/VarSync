@@ -3,11 +3,35 @@
 
 figma.showUI(__html__, { width: 332, height: 340 });
 
+// ── 상수 ─────────────────────────────────────────────────
+
+// "Primitive" / "Semantics" prefix 세그먼트 수
+const PREFIX_SEGMENT_COUNT = 1;
+
+// 분류 대상 그룹 — 확장 시 이 배열에만 추가
+const COLLECTION_GROUPS = ['primitive', 'semantics'] as const;
+type GroupKey = (typeof COLLECTION_GROUPS)[number];
+
+// resolvedType → DTCG $type 매핑
+const DTCG_TYPE: Record<VariableResolvedDataType, DesignToken['$type']> = {
+  COLOR:   'color',
+  FLOAT:   'number',
+  STRING:  'string',
+  BOOLEAN: 'boolean',
+};
+
+// UI 창 크기 제한
+const UI_MIN_WIDTH  = 280;
+const UI_MIN_HEIGHT = 280;
+const UI_MAX_WIDTH  = 800;
+const UI_MAX_HEIGHT = 800;
+
 // ── 메시지 타입 ───────────────────────────────────────────
 
 type PluginMessage =
   // token은 UI에서 보관 — Main으로 전달하지 않음
   | { type: 'request-variables'; payload: { owner: string; repo: string; baseBranch: string } }
+  | { type: 'resize'; width: number; height: number }
   | { type: 'close' };
 
 // ── UI 메시지 수신 ────────────────────────────────────────
@@ -32,6 +56,13 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
   }
 
+  if (msg.type === 'resize') {
+    // 범위를 벗어난 값은 클램핑
+    const w = Math.min(Math.max(Math.round(msg.width),  UI_MIN_WIDTH),  UI_MAX_WIDTH);
+    const h = Math.min(Math.max(Math.round(msg.height), UI_MIN_HEIGHT), UI_MAX_HEIGHT);
+    figma.ui.resize(w, h);
+  }
+
   if (msg.type === 'close') {
     figma.closePlugin();
   }
@@ -51,17 +82,11 @@ interface TokenGroup {
   [key: string]: TokenGroup | DesignToken;
 }
 
-// resolvedType → DTCG $type 매핑
-const DTCG_TYPE: Record<VariableResolvedDataType, DesignToken['$type']> = {
-  COLOR:   'color',
-  FLOAT:   'number',
-  STRING:  'string',
-  BOOLEAN: 'boolean',
-};
+// ── 타입 가드 ─────────────────────────────────────────────
 
-// 분류 대상 그룹 — 확장 시 이 배열에만 추가
-const COLLECTION_GROUPS = ['primitive', 'semantics'] as const;
-type GroupKey = (typeof COLLECTION_GROUPS)[number];
+function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
+  return '$value' in node;
+}
 
 // ── 메인 변환 함수 ────────────────────────────────────────
 
@@ -79,11 +104,10 @@ async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
   }
 
   // Pass 1: variableId → 경로 세그먼트 매핑 (alias 참조 해석용)
-  // "Primitive/Color/Blue/100" → ["Color", "Blue", "100"]  (prefix 1개 제거)
+  // "Primitive/Color/Blue/100" → ["Color", "Blue", "100"] (prefix 1개 제거)
   const idToPath: Record<string, string[]> = {};
   for (const v of allVariables) {
-    const parts = v.name.split('/');
-    idToPath[v.id] = parts.slice(1); // prefix(예: "Primitive") 제거
+    idToPath[v.id] = v.name.split('/').slice(PREFIX_SEGMENT_COUNT);
   }
 
   // Pass 2: 그룹별 TokenGroup 구성
@@ -93,7 +117,10 @@ async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
     const lowerName = variable.name.toLowerCase();
     // 변수 이름 prefix로 그룹 분류 ("Primitive/..." → "primitive")
     const groupKey = COLLECTION_GROUPS.find((g) => lowerName.startsWith(`${g}/`));
-    if (!groupKey) continue;
+    if (!groupKey) {
+      console.warn(`[VarSync] 분류 외 변수 skip: "${variable.name}"`);
+      continue;
+    }
 
     // 기본 모드 값을 $value로 사용
     const defaultModeId = defaultModeMap[variable.variableCollectionId];
@@ -108,10 +135,8 @@ async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
       token.$description = variable.description;
     }
 
-    // "Primitive/Color/Blue/100" → prefix 제거 후 ["Color", "Blue", "100"]
-    // 이 경로로 result[groupKey]에 중첩 삽입
-    const PREFIX_SEGMENT_COUNT = 1; // "Primitive" 또는 "Semantics" 1개 제거
-    const pathSegments = variable.name.split('/').slice(PREFIX_SEGMENT_COUNT);
+    // Pass 1에서 구성한 경로 재사용 (중복 계산 제거)
+    const pathSegments = idToPath[variable.id];
     setNestedToken(result[groupKey], pathSegments, token);
   }
 
@@ -153,8 +178,13 @@ function toTokenValue(
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   }
 
-  // FLOAT / STRING / BOOLEAN: 원시값 그대로
-  return value as string | number | boolean;
+  // FLOAT / STRING / BOOLEAN: 원시값 — typeof 가드로 안전하게 반환
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+
+  // 논리적으로 도달 불가능하지만 예상치 못한 타입에 대한 방어적 폴백
+  return String(value);
 }
 
 /**
@@ -165,8 +195,8 @@ function setNestedToken(root: TokenGroup, path: string[], token: DesignToken): v
   let node: TokenGroup = root;
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i];
-    // 이미 DesignToken이 있는 자리면 그룹으로 교체 (드문 충돌 방지)
-    if (!(key in node) || '$value' in (node[key] as object)) {
+    // isDesignToken 가드로 리프 노드 충돌 감지 — 그룹으로 교체 (드문 케이스)
+    if (!(key in node) || isDesignToken(node[key])) {
       node[key] = {};
     }
     node = node[key] as TokenGroup;
