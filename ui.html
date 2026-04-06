@@ -200,6 +200,11 @@
   </div>
 
   <div class="field">
+    <label for="folder-path">저장 폴더 경로</label>
+    <input id="folder-path" type="text" placeholder="tokens" value="tokens" />
+  </div>
+
+  <div class="field">
     <label>내보낼 컬렉션</label>
     <div id="collections-list" class="checkbox-row">
       <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
@@ -281,10 +286,22 @@
       document.querySelectorAll('[data-collection-id]:checked')
     ).map((el) => el.dataset.collectionId);
 
+    // 폴더 경로: 경로 순회(..) 차단, 슬래시 정규화, 빈 경우 기본값 적용
+    const folderPath = document.getElementById('folder-path').value
+      .trim()
+      .replace(/\\/g, '/')        // 백슬래시 → 슬래시
+      .replace(/\/+/g, '/')       // 연속 슬래시 → 단일 슬래시
+      .replace(/^\/+|\/+$/g, '')  // 앞뒤 슬래시 제거
+      .split('/')
+      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..') // 빈 세그먼트·경로 순회 차단
+      .join('/')
+      || 'tokens';
+
     return {
       repoInput: document.getElementById('repo').value,
       token: document.getElementById('token').value.trim(),
       baseBranch: document.getElementById('branch').value.trim() || 'main',
+      folderPath,
       selectedCollectionIds,
     };
   }
@@ -463,7 +480,7 @@
 
   // ── Sync 실행 ───────────────────────────────────────────
   document.getElementById('btn-sync').addEventListener('click', () => {
-    const { repoInput, token, baseBranch, selectedCollectionIds } = getFormValues();
+    const { repoInput, token, baseBranch, folderPath, selectedCollectionIds } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
     if (!parsed)                    return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
@@ -471,7 +488,7 @@
     if (selectedCollectionIds.length === 0) return setStatus('error', ['하나 이상의 컬렉션을 선택해주세요.']);
 
     // token은 UI에서 자체 보관 — plugin main으로 전달하지 않음
-    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch };
+    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, folderPath };
 
     setLoading(true);
     setStatus('info', [`Figma 변수를 읽는 중... (${selectedCollectionIds.length}개 컬렉션)`]);
@@ -512,7 +529,7 @@
 
     if (msg.type === 'variables-data') {
       if (!pendingSyncParams) return;
-      const { owner, repo, token, baseBranch } = pendingSyncParams;
+      const { owner, repo, token, baseBranch, folderPath } = pendingSyncParams;
       const files = msg.payload.files; // CollectionFilePayload[]
       pendingSyncParams = null;
 
@@ -531,7 +548,12 @@
         setStatus('info', ['파일 커밋 중...']);
 
         // 모든 파일의 기존 SHA를 병렬 조회
-        const filePaths = files.map((f) => `tokens/${toKebabCase(f.collectionName)}.json`);
+        // 각 세그먼트를 URL 인코딩하여 공백·특수문자로 인한 잘못된 API URL 방지
+        const encodeRepoPath = (p) => p.split('/').map(encodeURIComponent).join('/');
+        const filePaths = files.map(
+          (f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`
+        );
+        const encodedFilePaths = filePaths.map(encodeRepoPath);
 
         // 컬렉션명이 kebab-case 변환 후 충돌하는 경우 조기 오류 처리
         const uniquePaths = new Set(filePaths);
@@ -544,17 +566,16 @@
         }
 
         const existingShas = await Promise.all(
-          filePaths.map((path) => getFileSha(owner, repo, path, baseBranch, token))
+          encodedFilePaths.map((path) => getFileSha(owner, repo, path, baseBranch, token))
         );
 
         // 각 컬렉션 파일을 순차 커밋
         for (let i = 0; i < files.length; i++) {
           const { collectionName, tokensJson } = files[i];
-          const filePath = filePaths[i];
           const existingSha = existingShas[i];
           await putFile(
-            owner, repo, filePath, tokensJson,
-            `chore: sync figma variables (${collectionName})`,
+            owner, repo, encodedFilePaths[i], tokensJson,
+            `chore: sync "${collectionName}" tokens from Figma`,
             newBranch, token, existingSha
           );
         }
