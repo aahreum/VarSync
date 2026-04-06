@@ -45,13 +45,15 @@ function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
 
 type PluginMessage =
   | { type: "request-variables"; payload: { selectedCollectionIds: string[] } }
+  | { type: "save-token"; payload: { encrypted: string } }
+  | { type: "clear-token" }
   | { type: "resize"; width: number; height: number }
   | { type: "close" };
 
-// ── 시작: 컬렉션 목록을 UI로 전송 ────────────────────────
-// 사용자가 내보낼 컬렉션을 체크박스로 선택할 수 있도록 목록 제공
+// ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
 
 (async () => {
+  // 컬렉션 목록 전송
   try {
     const collections =
       await figma.variables.getLocalVariableCollectionsAsync();
@@ -73,6 +75,15 @@ type PluginMessage =
       message:
         e instanceof Error ? e.message : "컬렉션 목록을 불러오지 못했습니다.",
     });
+  }
+
+  // 저장된 암호화 토큰 전송 (없으면 null)
+  try {
+    const stored = await figma.clientStorage.getAsync("enc-token");
+    const encrypted = stored !== undefined ? stored : null;
+    figma.ui.postMessage({ type: "stored-token", payload: { encrypted } });
+  } catch (_e) {
+    figma.ui.postMessage({ type: "stored-token", payload: { encrypted: null } });
   }
 })();
 
@@ -109,6 +120,24 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       UI_MAX_HEIGHT,
     );
     figma.ui.resize(w, h);
+  }
+
+  if (msg.type === "save-token") {
+    try {
+      await figma.clientStorage.setAsync("enc-token", msg.payload.encrypted);
+      figma.ui.postMessage({ type: "token-saved", payload: { success: true } });
+    } catch (_e) {
+      figma.ui.postMessage({ type: "token-saved", payload: { success: false } });
+    }
+  }
+
+  if (msg.type === "clear-token") {
+    try {
+      await figma.clientStorage.deleteAsync("enc-token");
+      figma.ui.postMessage({ type: "token-cleared", payload: { success: true } });
+    } catch (_e) {
+      figma.ui.postMessage({ type: "token-cleared", payload: { success: false } });
+    }
   }
 
   if (msg.type === "close") {
