@@ -30,7 +30,7 @@ const UI_MAX_HEIGHT = 800;
 
 type PluginMessage =
   // token은 UI에서 보관 — Main으로 전달하지 않음
-  | { type: 'request-variables'; payload: { owner: string; repo: string; baseBranch: string } }
+  | { type: 'request-variables'; payload: { owner: string; repo: string; baseBranch: string; groups: GroupKey[] } }
   | { type: 'resize'; width: number; height: number }
   | { type: 'close' };
 
@@ -39,13 +39,13 @@ type PluginMessage =
 figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === 'request-variables') {
     try {
-      const tokens = await buildDesignTokens();
-      // 변수 JSON만 전달 — 민감한 token은 UI에서 자체 관리
+      const tokens = await buildDesignTokens(msg.payload.groups);
+      // 선택된 그룹의 JSON만 전달 — 민감한 token은 UI에서 자체 관리
       figma.ui.postMessage({
         type: 'variables-data',
         payload: {
-          primitiveJson: JSON.stringify(tokens.primitive, null, 2),
-          semanticsJson: JSON.stringify(tokens.semantics, null, 2),
+          ...(tokens.primitive && { primitiveJson: JSON.stringify(tokens.primitive, null, 2) }),
+          ...(tokens.semantics && { semanticsJson: JSON.stringify(tokens.semantics, null, 2) }),
         },
       });
     } catch (e) {
@@ -90,7 +90,7 @@ function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
 
 // ── 메인 변환 함수 ────────────────────────────────────────
 
-async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
+async function buildDesignTokens(groups: GroupKey[]): Promise<Partial<Record<GroupKey, TokenGroup>>> {
   // dynamic-page 환경이므로 반드시 Async API 사용
   const [collections, allVariables] = await Promise.all([
     figma.variables.getLocalVariableCollectionsAsync(),
@@ -110,13 +110,16 @@ async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
     idToPath[v.id] = v.name.split('/').slice(PREFIX_SEGMENT_COUNT);
   }
 
-  // Pass 2: 그룹별 TokenGroup 구성
-  const result: Record<GroupKey, TokenGroup> = { primitive: {}, semantics: {} };
+  // Pass 2: 선택된 그룹만 TokenGroup 구성
+  const result: Partial<Record<GroupKey, TokenGroup>> = {};
+  for (const g of groups) result[g] = {};
 
   for (const variable of allVariables) {
     const lowerName = variable.name.toLowerCase();
-    // 변수 이름 prefix로 그룹 분류 ("Primitive/..." → "primitive")
-    const groupKey = COLLECTION_GROUPS.find((g) => lowerName.startsWith(`${g}/`));
+    // 변수 이름 prefix로 그룹 분류, 미선택 그룹은 건너뜀
+    const groupKey = COLLECTION_GROUPS.find(
+      (g) => groups.includes(g) && lowerName.startsWith(`${g}/`),
+    );
     if (!groupKey) {
       console.warn(`[VarSync] 분류 외 변수 skip: "${variable.name}"`);
       continue;
@@ -137,7 +140,7 @@ async function buildDesignTokens(): Promise<Record<GroupKey, TokenGroup>> {
 
     // Pass 1에서 구성한 경로 재사용 (중복 계산 제거)
     const pathSegments = idToPath[variable.id];
-    setNestedToken(result[groupKey], pathSegments, token);
+    setNestedToken(result[groupKey]!, pathSegments, token);
   }
 
   return result;

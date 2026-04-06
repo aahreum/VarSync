@@ -80,6 +80,30 @@
       color: #b0b0b0;
     }
 
+    .checkbox-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 4px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #1e1e1e;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #18a0fb;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
     .divider {
       height: 1px;
       background: #f0f0f0;
@@ -163,6 +187,20 @@
     <input id="branch" type="text" placeholder="main" value="main" />
   </div>
 
+  <div class="field">
+    <label>내보낼 그룹</label>
+    <div class="checkbox-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="chk-primitive" checked />
+        Primitive
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="chk-semantics" checked />
+        Semantics
+      </label>
+    </div>
+  </div>
+
   <div class="divider"></div>
 
   <div class="btn-row">
@@ -229,10 +267,14 @@
 
   /** 입력 폼 값을 한 번에 읽어오는 헬퍼 */
   function getFormValues() {
+    const groups = [];
+    if (document.getElementById('chk-primitive').checked) groups.push('primitive');
+    if (document.getElementById('chk-semantics').checked) groups.push('semantics');
     return {
       repoInput: document.getElementById('repo').value,
       token: document.getElementById('token').value.trim(),
       baseBranch: document.getElementById('branch').value.trim() || 'main',
+      groups,
     };
   }
 
@@ -371,17 +413,18 @@
 
   // ── Sync 실행 ───────────────────────────────────────────
   document.getElementById('btn-sync').addEventListener('click', () => {
-    const { repoInput, token, baseBranch } = getFormValues();
+    const { repoInput, token, baseBranch, groups } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
-    if (!parsed) return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
-    if (!token)  return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+    if (!parsed)         return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
+    if (!token)          return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+    if (groups.length === 0) return setStatus('error', ['Primitive 또는 Semantics 중 하나 이상을 선택해주세요.']);
 
     // token은 UI에서 자체 보관 — plugin main으로 전달하지 않음
-    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch };
+    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, groups };
 
     setLoading(true);
-    setStatus('info', ['Figma 변수를 읽는 중...']);
+    setStatus('info', [`Figma 변수를 읽는 중... (${groups.join(', ')})`]);
 
     // 응답이 없을 경우 자동 타임아웃 처리
     syncTimeoutId = setTimeout(() => {
@@ -393,7 +436,7 @@
     parent.postMessage({
       pluginMessage: {
         type: 'request-variables',
-        payload: { owner: parsed.owner, repo: parsed.repo, baseBranch },
+        payload: { owner: parsed.owner, repo: parsed.repo, baseBranch, groups },
       }
     }, '*');
   });
@@ -408,7 +451,7 @@
 
     if (msg.type === 'variables-data') {
       if (!pendingSyncParams) return;
-      const { owner, repo, token, baseBranch } = pendingSyncParams;
+      const { owner, repo, token, baseBranch, groups } = pendingSyncParams;
       const { primitiveJson, semanticsJson } = msg.payload;
       pendingSyncParams = null;
 
@@ -424,13 +467,15 @@
         await createBranch(owner, repo, newBranch, baseSha, token);
         setStatus('info', ['파일 커밋 중...']);
 
-        const [primSha, semSha] = await Promise.all([
-          getFileSha(owner, repo, FILE_PATHS.primitive, baseBranch, token),
-          getFileSha(owner, repo, FILE_PATHS.semantics, baseBranch, token),
-        ]);
-
-        await putFile(owner, repo, FILE_PATHS.primitive, primitiveJson, COMMIT_MESSAGES.primitive, newBranch, token, primSha);
-        await putFile(owner, repo, FILE_PATHS.semantics, semanticsJson, COMMIT_MESSAGES.semantics, newBranch, token, semSha);
+        // 선택된 그룹의 파일만 커밋
+        if (groups.includes('primitive') && primitiveJson) {
+          const primSha = await getFileSha(owner, repo, FILE_PATHS.primitive, baseBranch, token);
+          await putFile(owner, repo, FILE_PATHS.primitive, primitiveJson, COMMIT_MESSAGES.primitive, newBranch, token, primSha);
+        }
+        if (groups.includes('semantics') && semanticsJson) {
+          const semSha = await getFileSha(owner, repo, FILE_PATHS.semantics, baseBranch, token);
+          await putFile(owner, repo, FILE_PATHS.semantics, semanticsJson, COMMIT_MESSAGES.semantics, newBranch, token, semSha);
+        }
 
         setStatus('info', ['PR 생성 중...']);
         const prUrl = await createPR(owner, repo, newBranch, baseBranch, token);
