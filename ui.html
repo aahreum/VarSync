@@ -109,7 +109,7 @@
       display: none;
     }
 
-    #status.info  { background: #e8f4fd; color: #0d5a8e; display: block; }
+    #status.info    { background: #e8f4fd; color: #0d5a8e; display: block; }
     #status.success { background: #e6f9ed; color: #1a7f3c; display: block; }
     #status.error   { background: #fdecea; color: #c0392b; display: block; }
 
@@ -148,16 +148,63 @@
   <div id="status"></div>
 
 <script>
+  // ── 상수 ────────────────────────────────────────────────
+  const FILE_PATHS = {
+    primitive: 'tokens/primitive.json',
+    semantics: 'tokens/semantics.json',
+  };
+  const COMMIT_MESSAGES = {
+    primitive: 'chore: sync figma primitive variables',
+    semantics: 'chore: sync figma semantics variables',
+  };
+  const PR_TITLE = 'chore: sync figma variables';
+  const PR_BODY  = 'Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.';
+  const SYNC_TIMEOUT_MS = 15000;
+
+  // ── Sync 요청 시 UI에서 보관하는 파라미터 ─────────────────
+  // token은 plugin main으로 전달하지 않고 여기서 관리
+  let pendingSyncParams = null;
+  let syncTimeoutId = null;
+
   // ── 유틸 ────────────────────────────────────────────────
   function parseGitHubUrl(input) {
     const match = input.trim().match(/(?:github\.com\/)?([^/\s]+)\/([^/\s]+?)(?:\.git)?$/);
     return match ? { owner: match[1], repo: match[2] } : null;
   }
 
-  function setStatus(type, html) {
+  /** 입력 폼 값을 한 번에 읽어오는 헬퍼 */
+  function getFormValues() {
+    return {
+      repoInput: document.getElementById('repo').value,
+      token: document.getElementById('token').value.trim(),
+      baseBranch: document.getElementById('branch').value.trim() || 'main',
+    };
+  }
+
+  /**
+   * 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지)
+   * @param {'info'|'success'|'error'} type
+   * @param {string[]} lines  - 표시할 텍스트 줄 배열
+   * @param {{ url: string, label: string } | null} link - 선택적 링크
+   */
+  function setStatus(type, lines, link = null) {
     const el = document.getElementById('status');
     el.className = type;
-    el.innerHTML = html;
+    el.textContent = '';
+
+    lines.forEach((line, i) => {
+      if (i > 0) el.appendChild(document.createElement('br'));
+      el.appendChild(document.createTextNode(line));
+    });
+
+    if (link) {
+      el.appendChild(document.createElement('br'));
+      const a = document.createElement('a');
+      a.href = link.url;
+      a.target = '_blank';
+      a.textContent = link.label;
+      el.appendChild(a);
+    }
   }
 
   function setLoading(isLoading) {
@@ -171,6 +218,16 @@
       'Content-Type': 'application/json',
       'X-GitHub-Api-Version': '2022-11-28',
     };
+  }
+
+  /** UTF-8 문자열을 Base64로 안전하게 인코딩 (TextEncoder 사용, unescape deprecated 대체) */
+  function toBase64(str) {
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
+    }
+    return btoa(binary);
   }
 
   // ── GitHub API 헬퍼 ────────────────────────────────────
@@ -208,11 +265,7 @@
   }
 
   async function putFile(owner, repo, path, content, message, branch, token, existingSha) {
-    const body = {
-      message,
-      content: btoa(unescape(encodeURIComponent(content))),
-      branch,
-    };
+    const body = { message, content: toBase64(content), branch };
     if (existingSha) body.sha = existingSha;
 
     const res = await fetch(
@@ -228,12 +281,7 @@
       {
         method: 'POST',
         headers: githubHeaders(token),
-        body: JSON.stringify({
-          title: 'chore: sync figma variables',
-          head,
-          base,
-          body: 'Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.',
-        }),
+        body: JSON.stringify({ title: PR_TITLE, head, base, body: PR_BODY }),
       }
     );
     if (!res.ok) throw new Error(`PR 생성 실패 (${res.status})`);
@@ -243,22 +291,24 @@
 
   // ── 연결 테스트 ─────────────────────────────────────────
   document.getElementById('btn-test').addEventListener('click', async () => {
-    const repoInput = document.getElementById('repo').value;
-    const token = document.getElementById('token').value.trim();
+    const { repoInput, token, baseBranch } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
-    if (!parsed) return setStatus('error', '올바른 Repository 주소를 입력해주세요.');
-    if (!token) return setStatus('error', 'Personal Access Token을 입력해주세요.');
+    if (!parsed) return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
+    if (!token)  return setStatus('error', ['Personal Access Token을 입력해주세요.']);
 
     setLoading(true);
-    setStatus('info', '연결 테스트 중...');
+    setStatus('info', ['연결 테스트 중...']);
 
     try {
-      const branch = document.getElementById('branch').value.trim() || 'main';
-      const sha = await getBranchSha(parsed.owner, parsed.repo, branch, token);
-      setStatus('success', `연결 성공!<br>${parsed.owner}/${parsed.repo} @ ${branch}<br>SHA: ${sha.slice(0, 7)}`);
+      const sha = await getBranchSha(parsed.owner, parsed.repo, baseBranch, token);
+      setStatus('success', [
+        '연결 성공!',
+        `${parsed.owner}/${parsed.repo} @ ${baseBranch}`,
+        `SHA: ${sha.slice(0, 7)}`,
+      ]);
     } catch (e) {
-      setStatus('error', `연결 실패: ${e.message}`);
+      setStatus('error', [`연결 실패: ${e.message}`]);
     } finally {
       setLoading(false);
     }
@@ -266,73 +316,83 @@
 
   // ── Sync 실행 ───────────────────────────────────────────
   document.getElementById('btn-sync').addEventListener('click', () => {
-    const repoInput = document.getElementById('repo').value;
-    const token = document.getElementById('token').value.trim();
-    const baseBranch = document.getElementById('branch').value.trim() || 'main';
+    const { repoInput, token, baseBranch } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
-    if (!parsed) return setStatus('error', '올바른 Repository 주소를 입력해주세요.');
-    if (!token) return setStatus('error', 'Personal Access Token을 입력해주세요.');
+    if (!parsed) return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
+    if (!token)  return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+
+    // token은 UI에서 자체 보관 — plugin main으로 전달하지 않음
+    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch };
 
     setLoading(true);
-    setStatus('info', 'Figma 변수를 읽는 중...');
+    setStatus('info', ['Figma 변수를 읽는 중...']);
 
-    // Plugin Main에 변수 요청
+    // 응답이 없을 경우 자동 타임아웃 처리
+    syncTimeoutId = setTimeout(() => {
+      pendingSyncParams = null;
+      setLoading(false);
+      setStatus('error', ['응답 시간 초과. 다시 시도해주세요.']);
+    }, SYNC_TIMEOUT_MS);
+
     parent.postMessage({
       pluginMessage: {
         type: 'request-variables',
-        payload: { owner: parsed.owner, repo: parsed.repo, token, baseBranch },
+        payload: { owner: parsed.owner, repo: parsed.repo, baseBranch },
       }
     }, '*');
   });
 
   // ── Plugin Main으로부터 메시지 수신 ─────────────────────
-  window.onmessage = async (event) => {
+  // addEventListener 사용 — onmessage 직접 할당은 재할당 시 덮어써지는 위험이 있음
+  window.addEventListener('message', async (event) => {
     const msg = event.data.pluginMessage;
     if (!msg) return;
 
-    if (msg.type === 'variables-data') {
-      const { owner, repo, token, baseBranch, primitiveJson, semanticsJson } = msg.payload;
+    clearTimeout(syncTimeoutId);
 
-      setStatus('info', '브랜치 생성 중...');
+    if (msg.type === 'variables-data') {
+      if (!pendingSyncParams) return;
+      const { owner, repo, token, baseBranch } = pendingSyncParams;
+      const { primitiveJson, semanticsJson } = msg.payload;
+      pendingSyncParams = null;
+
+      setStatus('info', ['브랜치 생성 중...']);
 
       try {
         const baseSha = await getBranchSha(owner, repo, baseBranch, token);
 
-        const now = new Date();
-        const timestamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+        // UTC 기준 타임스탬프 브랜치명 생성 (예: figma-sync/20240406-1430)
+        const timestamp = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, '').replace(/(\d{8})(\d{4})/, '$1-$2');
         const newBranch = `figma-sync/${timestamp}`;
 
         await createBranch(owner, repo, newBranch, baseSha, token);
-        setStatus('info', '파일 커밋 중...');
-
-        const primitivePath = 'tokens/primitive.json';
-        const semanticsPath = 'tokens/semantics.json';
+        setStatus('info', ['파일 커밋 중...']);
 
         const [primSha, semSha] = await Promise.all([
-          getFileSha(owner, repo, primitivePath, baseBranch, token),
-          getFileSha(owner, repo, semanticsPath, baseBranch, token),
+          getFileSha(owner, repo, FILE_PATHS.primitive, baseBranch, token),
+          getFileSha(owner, repo, FILE_PATHS.semantics, baseBranch, token),
         ]);
 
-        await putFile(owner, repo, primitivePath, primitiveJson, 'chore: sync figma primitive variables', newBranch, token, primSha);
-        await putFile(owner, repo, semanticsPath, semanticsJson, 'chore: sync figma semantics variables', newBranch, token, semSha);
+        await putFile(owner, repo, FILE_PATHS.primitive, primitiveJson, COMMIT_MESSAGES.primitive, newBranch, token, primSha);
+        await putFile(owner, repo, FILE_PATHS.semantics, semanticsJson, COMMIT_MESSAGES.semantics, newBranch, token, semSha);
 
-        setStatus('info', 'PR 생성 중...');
+        setStatus('info', ['PR 생성 중...']);
         const prUrl = await createPR(owner, repo, newBranch, baseBranch, token);
 
-        setStatus('success', `PR이 생성되었습니다!<br><a href="${prUrl}" target="_blank">${prUrl}</a>`);
+        setStatus('success', ['PR이 생성되었습니다!'], { url: prUrl, label: prUrl });
       } catch (e) {
-        setStatus('error', `오류: ${e.message}`);
+        setStatus('error', [`오류: ${e.message}`]);
       } finally {
         setLoading(false);
       }
     }
 
     if (msg.type === 'error') {
-      setStatus('error', `플러그인 오류: ${msg.message}`);
+      setStatus('error', [`플러그인 오류: ${msg.message}`]);
       setLoading(false);
     }
-  };
+  });
 </script>
 </body>
 </html>
