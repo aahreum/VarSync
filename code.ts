@@ -1,44 +1,125 @@
-// 이 플러그인은 사용자에게 숫자를 입력받는 창을 띄우고,
-// 입력된 숫자만큼 화면에 사각형을 생성합니다.
+// VarSync - Figma Variables → GitHub PR Sync Plugin
+// docs/01-figma-variables-api.md 참고
 
-// 이 파일은 플러그인의 메인 코드를 담고 있습니다.
-// 이 파일의 코드는 'figma' 전역 객체를 통해 *Figma 문서*에 접근할 수 있습니다.
-// 브라우저 API는 "ui.html" 안의 <script> 태그 내에서 사용할 수 있으며,
-// 그곳은 전체 브라우저 환경을 제공합니다.
-// (참고: https://www.figma.com/plugin-docs/how-plugins-run)
+figma.showUI(__html__, { width: 332, height: 340 });
 
-// "ui.html"에 정의된 HTML 페이지를 화면에 보여줍니다.
-figma.showUI(__html__);
+// UI로부터 메시지 수신
+figma.ui.onmessage = async (msg: {
+  type: string;
+  payload?: {
+    owner: string;
+    repo: string;
+    token: string;
+    baseBranch: string;
+  };
+}) => {
+  if (msg.type === 'request-variables') {
+    if (!msg.payload) return;
 
-// HTML 페이지 내부에서 "parent.postMessage"를 호출하면 이 콜백 함수가 실행됩니다.
-// 이 콜백은 전달된 메시지의 "pluginMessage" 속성을 인자로 받습니다.
-figma.ui.onmessage = (msg: { type: string; count: number }) => {
-  // HTML 페이지에서 보낸 여러 종류의 메시지를 구분하는 한 가지 방법은
-  // 아래와 같이 "type" 속성을 가진 객체를 사용하는 것입니다.
-  if (msg.type === "create-shapes") {
-    // 이 플러그인은 화면에 사각형들을 생성합니다.
-    const numberOfRectangles = msg.count;
-
-    const nodes: SceneNode[] = [];
-    for (let i = 0; i < numberOfRectangles; i++) {
-      // 사각형 객체를 생성합니다.
-      const rect = figma.createRectangle();
-      // x 좌표를 설정하여 사각형들을 가로로 나열합니다.
-      rect.x = i * 150;
-      // 채우기 색상을 설정합니다 (주황색).
-      rect.fills = [{ type: "SOLID", color: { r: 1, g: 0.5, b: 0 } }];
-      // 현재 페이지에 생성한 사각형을 추가합니다.
-      figma.currentPage.appendChild(rect);
-      // 생성된 노드를 배열에 담습니다.
-      nodes.push(rect);
+    try {
+      const variables = await readVariables();
+      figma.ui.postMessage({
+        type: 'variables-data',
+        payload: {
+          ...msg.payload,
+          primitiveJson: JSON.stringify(variables.primitive, null, 2),
+          semanticsJson: JSON.stringify(variables.semantics, null, 2),
+        },
+      });
+    } catch (e) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: e instanceof Error ? e.message : '변수를 읽는 중 오류가 발생했습니다.',
+      });
     }
-    // 생성한 사각형들을 선택 상태로 만듭니다.
-    figma.currentPage.selection = nodes;
-    // 화면상의 뷰포트가 생성된 노드들을 비추도록 스크롤 및 줌을 조절합니다.
-    figma.viewport.scrollAndZoomIntoView(nodes);
   }
 
-  // 작업이 끝나면 반드시 플러그인을 종료해야 합니다.
-  // 종료하지 않으면 화면 하단에 취소 버튼이 계속 표시되며 플러그인이 실행 상태로 유지됩니다.
-  figma.closePlugin();
+  if (msg.type === 'close') {
+    figma.closePlugin();
+  }
 };
+
+// ── 변수 읽기 및 JSON 변환 ────────────────────────────────
+
+interface VariableOutput {
+  [group: string]: {
+    [name: string]: {
+      type: string;
+      values: { [mode: string]: unknown };
+    };
+  };
+}
+
+async function readVariables(): Promise<{ primitive: VariableOutput; semantics: VariableOutput }> {
+  // dynamic-page 환경이므로 반드시 Async API 사용
+  const [collections, allVariables] = await Promise.all([
+    figma.variables.getLocalVariableCollectionsAsync(),
+    figma.variables.getLocalVariablesAsync(),
+  ]);
+
+  // collectionId → modes 매핑 (modeId → modeName 변환용)
+  const modeMap: { [collectionId: string]: { [modeId: string]: string } } = {};
+  for (const col of collections) {
+    modeMap[col.id] = {};
+    for (const mode of col.modes) {
+      modeMap[col.id][mode.modeId] = mode.name;
+    }
+  }
+
+  const primitive: VariableOutput = {};
+  const semantics: VariableOutput = {};
+
+  for (const variable of allVariables) {
+    const isPrimitive = variable.name.toLowerCase().startsWith('primitive/');
+    const isSemantics = variable.name.toLowerCase().startsWith('semantics/');
+    if (!isPrimitive && !isSemantics) continue;
+
+    const target = isPrimitive ? primitive : semantics;
+    const modesForCollection = modeMap[variable.variableCollectionId] ?? {};
+
+    // "Primitive/Color/Blue/100" → group: "Color/Blue", name: "100"
+    const parts = variable.name.split('/');
+    const name = parts[parts.length - 1];
+    const group = parts.slice(1, -1).join('/') || 'default';
+
+    if (!target[group]) target[group] = {};
+
+    // 모드별 값 수집 (VariableAlias는 id 문자열로 표현)
+    const values: { [mode: string]: unknown } = {};
+    for (const [modeId, value] of Object.entries(variable.valuesByMode)) {
+      const modeName = modesForCollection[modeId] ?? modeId;
+      values[modeName] = serializeValue(value);
+    }
+
+    target[group][name] = {
+      type: variable.resolvedType,
+      values,
+    };
+  }
+
+  return { primitive, semantics };
+}
+
+function serializeValue(value: VariableValue): unknown {
+  if (value === null || value === undefined) return value;
+
+  // VariableAlias
+  if (typeof value === 'object' && 'type' in value && value.type === 'VARIABLE_ALIAS') {
+    return { $alias: value.id };
+  }
+
+  // RGBA color
+  if (typeof value === 'object' && 'r' in value) {
+    const color = value as RGB | RGBA;
+    const r = Math.round(color.r * 255);
+    const g = Math.round(color.g * 255);
+    const b = Math.round(color.b * 255);
+    const a = 'a' in color ? color.a : 1;
+    if (a === 1) {
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+
+  return value;
+}
