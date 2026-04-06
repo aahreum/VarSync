@@ -263,15 +263,16 @@
     return match ? { owner: match[1], repo: match[2] } : null;
   }
 
-  /** "My Collection Name" → "my-collection-name" */
+  /** "My Collection Name" → "my-collection-name". 변환 결과가 빈 문자열이면 "untitled" 반환 */
   function toKebabCase(str) {
-    return str
+    const result = str
       .trim()
       .toLowerCase()
       .replace(/[\s_]+/g, '-')
       .replace(/[^a-z0-9-]/g, '')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
+    return result || 'untitled';
   }
 
   /** 선택된 컬렉션 ID 목록을 반환 */
@@ -531,6 +532,17 @@
 
         // 모든 파일의 기존 SHA를 병렬 조회
         const filePaths = files.map((f) => `tokens/${toKebabCase(f.collectionName)}.json`);
+
+        // 컬렉션명이 kebab-case 변환 후 충돌하는 경우 조기 오류 처리
+        const uniquePaths = new Set(filePaths);
+        if (uniquePaths.size !== filePaths.length) {
+          const seen = new Set();
+          for (const p of filePaths) {
+            if (seen.has(p)) throw new Error(`파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`);
+            seen.add(p);
+          }
+        }
+
         const existingShas = await Promise.all(
           filePaths.map((path) => getFileSha(owner, repo, path, baseBranch, token))
         );

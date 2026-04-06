@@ -202,7 +202,7 @@ function toTokenValue(
     const r = Math.round((value as RGB).r * 255);
     const g = Math.round((value as RGB).g * 255);
     const b = Math.round((value as RGB).b * 255);
-    const a = 'a' in value ? (value as RGBA).a : 1;
+    const a = Math.round(('a' in value ? (value as RGBA).a : 1) * 1000) / 1000;
     if (a === 1) {
       return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
     }
