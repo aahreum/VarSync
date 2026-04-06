@@ -1,874 +1,1107 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VarSync</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VarSync</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
-      font-size: 12px;
-      color: #1e1e1e;
-      background: #fff;
-      padding: 16px;
-      width: 100%;
-      min-width: 280px;
-      box-sizing: border-box;
-    }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+        font-size: 12px;
+        color: #1e1e1e;
+        background: #fff;
+        padding: 16px;
+        width: 100%;
+        min-width: 280px;
+        box-sizing: border-box;
+      }
 
-    /* ── 리사이즈 핸들 ─────────────────────────────────────── */
-    #resize-handle {
-      position: fixed;
-      bottom: 0;
-      right: 0;
-      width: 16px;
-      height: 16px;
-      cursor: nwse-resize;
-      opacity: 0.35;
-      transition: opacity 0.15s;
-      background-image: radial-gradient(circle, #888 1.2px, transparent 1.2px);
-      background-size: 4px 4px;
-      background-position: 2px 2px;
-      background-repeat: repeat;
-      -webkit-mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
-      mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
-    }
-    #resize-handle:hover { opacity: 0.7; }
+      /* ── 리사이즈 핸들 ─────────────────────────────────────── */
+      #resize-handle {
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 16px;
+        height: 16px;
+        cursor: nwse-resize;
+        opacity: 0.35;
+        transition: opacity 0.15s;
+        background-image: radial-gradient(
+          circle,
+          #888 1.2px,
+          transparent 1.2px
+        );
+        background-size: 4px 4px;
+        background-position: 2px 2px;
+        background-repeat: repeat;
+        -webkit-mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
+        mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
+      }
+      #resize-handle:hover {
+        opacity: 0.7;
+      }
 
-    /* ── 헤더 ──────────────────────────────────────────────── */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 14px;
-    }
+      /* ── 헤더 ──────────────────────────────────────────────── */
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
 
-    h1 {
-      font-size: 14px;
-      font-weight: 600;
-      color: #1e1e1e;
-    }
+      h1 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1e1e1e;
+      }
 
-    /* ── 스텝 인디케이터 ────────────────────────────────────── */
-    .step-indicator {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
+      /* ── 스텝 인디케이터 ────────────────────────────────────── */
+      .step-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
 
-    .step-dot {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      font-size: 10px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #e8e8e8;
-      color: #888;
-      transition: background 0.2s, color 0.2s;
-    }
+      .step-dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        font-size: 10px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #e8e8e8;
+        color: #888;
+        transition:
+          background 0.2s,
+          color 0.2s;
+      }
 
-    .step-dot.active { background: #18a0fb; color: #fff; }
-    .step-dot.done   { background: #1a7f3c; color: #fff; }
+      .step-dot.active {
+        background: #18a0fb;
+        color: #fff;
+      }
+      .step-dot.done {
+        background: #1a7f3c;
+        color: #fff;
+      }
 
-    .step-line {
-      width: 16px;
-      height: 1px;
-      background: #e0e0e0;
-    }
+      .step-line {
+        width: 16px;
+        height: 1px;
+        background: #e0e0e0;
+      }
 
-    /* ── 폼 필드 ────────────────────────────────────────────── */
-    .field { margin-bottom: 12px; }
+      /* ── 폼 필드 ────────────────────────────────────────────── */
+      .field {
+        margin-bottom: 12px;
+      }
 
-    label {
-      display: block;
-      font-size: 11px;
-      font-weight: 500;
-      color: #555;
-      margin-bottom: 4px;
-    }
+      label {
+        display: block;
+        font-size: 11px;
+        font-weight: 500;
+        color: #555;
+        margin-bottom: 4px;
+      }
 
-    input[type="text"],
-    input[type="password"] {
-      width: 100%;
-      height: 32px;
-      padding: 0 8px;
-      border: 1px solid #d9d9d9;
-      border-radius: 4px;
-      font-size: 12px;
-      color: #1e1e1e;
-      outline: none;
-      transition: border-color 0.15s;
-    }
+      input[type="text"],
+      input[type="password"] {
+        width: 100%;
+        height: 32px;
+        padding: 0 8px;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #1e1e1e;
+        outline: none;
+        transition: border-color 0.15s;
+      }
 
-    input[type="text"]:focus,
-    input[type="password"]:focus { border-color: #18a0fb; }
+      input[type="text"]:focus,
+      input[type="password"]:focus {
+        border-color: #18a0fb;
+      }
 
-    input::placeholder { color: #b0b0b0; }
+      input::placeholder {
+        color: #b0b0b0;
+      }
 
-    /* ── 필드 힌트 ──────────────────────────────────────────── */
-    .field-hint {
-      margin-top: 5px;
-      padding: 6px 8px;
-      background: #f7f8fa;
-      border-radius: 4px;
-      font-size: 10px;
-      color: #777;
-      line-height: 1.6;
-    }
+      /* ── 필드 힌트 ──────────────────────────────────────────── */
+      .field-hint {
+        margin-top: 5px;
+        padding: 6px 8px;
+        background: #f7f8fa;
+        border-radius: 4px;
+        font-size: 10px;
+        color: #777;
+        line-height: 1.6;
+      }
 
-    .field-hint .scope-tag {
-      display: inline-block;
-      font-family: 'Menlo', 'Consolas', monospace;
-      font-size: 10px;
-      background: #e8edf2;
-      color: #3a5068;
-      border-radius: 3px;
-      padding: 0 4px;
-    }
+      .field-hint .scope-tag {
+        display: inline-block;
+        font-family: "Menlo", "Consolas", monospace;
+        font-size: 10px;
+        background: #e8edf2;
+        color: #3a5068;
+        border-radius: 3px;
+        padding: 0 4px;
+      }
 
-    .field-hint a { color: #18a0fb; text-decoration: none; }
-    .field-hint a:hover { text-decoration: underline; }
+      .field-hint a {
+        color: #18a0fb;
+        text-decoration: none;
+      }
+      .field-hint a:hover {
+        text-decoration: underline;
+      }
 
-    /* ── 경로 미리보기 ──────────────────────────────────────── */
-    .path-preview {
-      margin-top: 5px;
-      font-size: 10px;
-      color: #888;
-    }
+      /* ── 경로 미리보기 ──────────────────────────────────────── */
+      .path-preview {
+        margin-top: 5px;
+        font-size: 10px;
+        color: #888;
+      }
 
-    .path-preview code {
-      font-family: 'Menlo', 'Consolas', monospace;
-      background: #f0f0f0;
-      padding: 1px 4px;
-      border-radius: 3px;
-      color: #444;
-    }
+      .path-preview code {
+        font-family: "Menlo", "Consolas", monospace;
+        background: #f0f0f0;
+        padding: 1px 4px;
+        border-radius: 3px;
+        color: #444;
+      }
 
-    /* ── 토큰 저장 행 ──────────────────────────────────────── */
-    .token-save-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 6px;
-    }
+      /* ── 토큰 저장 행 ──────────────────────────────────────── */
+      .token-save-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 6px;
+      }
 
-    .token-save-label {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      color: #555;
-      cursor: pointer;
-      user-select: none;
-    }
+      .token-save-label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: #555;
+        cursor: pointer;
+        user-select: none;
+      }
 
-    #btn-clear-token {
-      flex: none;
-      height: 24px;
-      padding: 0 8px;
-      font-size: 10px;
-      background: #fff0f0;
-      color: #c0392b;
-      border: 1px solid #f5c6cb;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
+      #btn-clear-token {
+        flex: none;
+        height: 24px;
+        padding: 0 8px;
+        font-size: 10px;
+        background: #fff0f0;
+        color: #c0392b;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
 
-    #btn-clear-token:hover { background: #fde8e8; }
+      #btn-clear-token:hover {
+        background: #fde8e8;
+      }
 
-    .security-warning {
-      margin-top: 5px;
-      padding: 5px 8px;
-      background: #fffbe6;
-      border-left: 3px solid #f5a623;
-      border-radius: 0 4px 4px 0;
-      font-size: 10px;
-      color: #7a5c00;
-      line-height: 1.5;
-    }
+      .security-warning {
+        margin-top: 5px;
+        padding: 5px 8px;
+        background: #fffbe6;
+        border-left: 3px solid #f5a623;
+        border-radius: 0 4px 4px 0;
+        font-size: 10px;
+        color: #7a5c00;
+        line-height: 1.5;
+      }
 
-    /* ── 구분선 ─────────────────────────────────────────────── */
-    .divider {
-      height: 1px;
-      background: #f0f0f0;
-      margin: 14px 0;
-    }
+      /* ── 구분선 ─────────────────────────────────────────────── */
+      .divider {
+        height: 1px;
+        background: #f0f0f0;
+        margin: 14px 0;
+      }
 
-    /* ── 컬렉션 체크박스 ────────────────────────────────────── */
-    .checkbox-row {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 4px;
-    }
+      /* ── 컬렉션 체크박스 ────────────────────────────────────── */
+      .checkbox-row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 4px;
+      }
 
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 12px;
-      color: #1e1e1e;
-      cursor: pointer;
-      user-select: none;
-    }
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        color: #1e1e1e;
+        cursor: pointer;
+        user-select: none;
+      }
 
-    .checkbox-label .count { font-size: 11px; color: #888; }
+      .checkbox-label .count {
+        font-size: 11px;
+        color: #888;
+      }
 
-    input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      accent-color: #18a0fb;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
+      input[type="checkbox"] {
+        width: 14px;
+        height: 14px;
+        accent-color: #18a0fb;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
 
-    #collections-loading { font-size: 11px; color: #888; margin-top: 4px; }
+      #collections-loading {
+        font-size: 11px;
+        color: #888;
+        margin-top: 4px;
+      }
 
-    /* ── 버튼 ───────────────────────────────────────────────── */
-    .btn-row { display: flex; gap: 8px; }
+      /* ── 버튼 ───────────────────────────────────────────────── */
+      .btn-row {
+        display: flex;
+        gap: 8px;
+      }
 
-    button {
-      flex: 1;
-      height: 32px;
-      border: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
-    }
+      button {
+        flex: 1;
+        height: 32px;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition:
+          background 0.15s,
+          opacity 0.15s;
+      }
 
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
 
-    .btn-secondary { background: #f5f5f5; color: #1e1e1e; }
-    .btn-secondary:hover:not(:disabled) { background: #e8e8e8; }
+      .btn-secondary {
+        background: #f5f5f5;
+        color: #1e1e1e;
+      }
+      .btn-secondary:hover:not(:disabled) {
+        background: #e8e8e8;
+      }
 
-    .btn-primary { background: #18a0fb; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #0d8de0; }
+      .btn-primary {
+        background: #18a0fb;
+        color: #fff;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: #0d8de0;
+      }
 
-    /* ── 상태 메시지 ────────────────────────────────────────── */
-    #status {
-      margin-top: 12px;
-      padding: 8px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      line-height: 1.5;
-      display: none;
-    }
+      /* ── 상태 메시지 ────────────────────────────────────────── */
+      #status {
+        margin-top: 12px;
+        padding: 8px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        line-height: 1.5;
+        display: none;
+      }
 
-    #status.info    { background: #e8f4fd; color: #0d5a8e; display: block; }
-    #status.success { background: #e6f9ed; color: #1a7f3c; display: block; }
-    #status.error   { background: #fdecea; color: #c0392b; display: block; }
-    #status a { color: inherit; font-weight: 600; }
+      #status.info {
+        background: #e8f4fd;
+        color: #0d5a8e;
+        display: block;
+      }
+      #status.success {
+        background: #e6f9ed;
+        color: #1a7f3c;
+        display: block;
+      }
+      #status.error {
+        background: #fdecea;
+        color: #c0392b;
+        display: block;
+      }
+      #status a {
+        color: inherit;
+        font-weight: 600;
+      }
 
-    /* ── 스텝 패널 ──────────────────────────────────────────── */
-    .step-panel[hidden] { display: none; }
-  </style>
-</head>
-<body>
-
-  <div class="header">
-    <h1>VarSync</h1>
-    <div class="step-indicator">
-      <div class="step-dot active" id="step-dot-1">1</div>
-      <div class="step-line"></div>
-      <div class="step-dot" id="step-dot-2">2</div>
-    </div>
-  </div>
-
-  <!-- ── Step 1: GitHub 설정 ──────────────────────────────── -->
-  <div class="step-panel" id="step-1">
-
-    <div class="field">
-      <label for="repo">GitHub Repository</label>
-      <input id="repo" type="text" placeholder="owner/repo 또는 GitHub URL" />
-    </div>
-
-    <div class="field">
-      <label for="token">Personal Access Token</label>
-      <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx" />
-      <div class="field-hint">
-        Fine-grained PAT 필요 권한:
-        <span class="scope-tag">Contents: Read &amp; Write</span>
-        <span class="scope-tag">Pull requests: Read &amp; Write</span><br />
-        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">토큰 생성 →</a>
+      /* ── 스텝 패널 ──────────────────────────────────────────── */
+      .step-panel[hidden] {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>VarSync</h1>
+      <div class="step-indicator">
+        <div class="step-dot active" id="step-dot-1">1</div>
+        <div class="step-line"></div>
+        <div class="step-dot" id="step-dot-2">2</div>
       </div>
-      <div class="token-save-row">
-        <label class="token-save-label">
-          <input type="checkbox" id="chk-save-token" />
-          토큰 저장 (난독화)
-        </label>
-        <button id="btn-clear-token" hidden>저장된 토큰 삭제</button>
+    </div>
+
+    <!-- ── Step 1: GitHub 설정 ──────────────────────────────── -->
+    <div class="step-panel" id="step-1">
+      <div class="field">
+        <label for="repo">GitHub Repository</label>
+        <input id="repo" type="text" placeholder="owner/repo 또는 GitHub URL" />
       </div>
-      <div class="security-warning" id="token-warning" hidden>
-        토큰을 난독화하여 로컬(clientStorage)에 저장합니다.
-        난독화 키는 플러그인 코드에 내장되어 있어 평문 그대로 저장되지는 않지만, 완전한 암호화는 아닙니다.
-        공유 기기에서는 사용을 권장하지 않습니다.
+
+      <div class="field">
+        <label for="token">Personal Access Token</label>
+        <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx" />
+        <div class="field-hint">
+          Fine-grained PAT 필요 권한:
+          <span class="scope-tag">Contents: Read &amp; Write</span>
+          <span class="scope-tag">Pull requests: Read &amp; Write</span><br />
+          <a
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            >토큰 생성 →</a
+          >
+        </div>
+        <div class="token-save-row">
+          <label class="token-save-label">
+            <input type="checkbox" id="chk-save-token" />
+            토큰 저장
+          </label>
+          <button id="btn-clear-token" hidden>저장된 토큰 삭제</button>
+        </div>
+        <div class="security-warning" id="token-warning" hidden>
+          토큰을 난독화하여 로컬(clientStorage)에 저장합니다. 난독화 키는
+          플러그인 코드에 내장되어 있어 평문 그대로 저장되지는 않지만, 완전한
+          암호화는 아닙니다. 공유 기기에서는 사용을 권장하지 않습니다.
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="base-branch">Base Branch</label>
+        <input id="base-branch" type="text" placeholder="main" value="main" />
+      </div>
+
+      <div class="field">
+        <label for="new-branch">생성할 브랜치명</label>
+        <input
+          id="new-branch"
+          type="text"
+          placeholder="figma-sync/YYYYMMDD-HHmm (비우면 자동 생성)"
+        />
+      </div>
+
+      <div class="field">
+        <label for="folder-path">저장 폴더 경로</label>
+        <input
+          id="folder-path"
+          type="text"
+          placeholder="tokens"
+          value="tokens"
+        />
+        <div class="path-preview">
+          저장 위치: <code id="path-preview-text">./tokens</code>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="btn-row">
+        <button class="btn-secondary" id="btn-test">연결 테스트</button>
+        <button class="btn-primary" id="btn-next">다음 →</button>
       </div>
     </div>
 
-    <div class="field">
-      <label for="base-branch">Base Branch</label>
-      <input id="base-branch" type="text" placeholder="main" value="main" />
-    </div>
+    <!-- ── Step 2: 컬렉션 선택 ──────────────────────────────── -->
+    <div class="step-panel" id="step-2" hidden>
+      <div class="field">
+        <label>내보낼 컬렉션</label>
+        <div id="collections-list" class="checkbox-row">
+          <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
+        </div>
+      </div>
 
-    <div class="field">
-      <label for="new-branch">생성할 브랜치명</label>
-      <input id="new-branch" type="text" placeholder="figma-sync/YYYYMMDD-HHmm (비우면 자동 생성)" />
-    </div>
+      <div class="divider"></div>
 
-    <div class="field">
-      <label for="folder-path">저장 폴더 경로</label>
-      <input id="folder-path" type="text" placeholder="tokens" value="tokens" />
-      <div class="path-preview">저장 위치: <code id="path-preview-text">./tokens</code></div>
-    </div>
-
-    <div class="divider"></div>
-
-    <div class="btn-row">
-      <button class="btn-secondary" id="btn-test">연결 테스트</button>
-      <button class="btn-primary" id="btn-next">다음 →</button>
-    </div>
-
-  </div>
-
-  <!-- ── Step 2: 컬렉션 선택 ──────────────────────────────── -->
-  <div class="step-panel" id="step-2" hidden>
-
-    <div class="field">
-      <label>내보낼 컬렉션</label>
-      <div id="collections-list" class="checkbox-row">
-        <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
+      <div class="btn-row">
+        <button class="btn-secondary" id="btn-back">← 이전</button>
+        <button class="btn-primary" id="btn-sync" disabled>
+          Sync to GitHub
+        </button>
       </div>
     </div>
 
-    <div class="divider"></div>
+    <div id="status"></div>
 
-    <div class="btn-row">
-      <button class="btn-secondary" id="btn-back">← 이전</button>
-      <button class="btn-primary" id="btn-sync" disabled>Sync to GitHub</button>
-    </div>
+    <div id="resize-handle" title="드래그하여 크기 조절"></div>
 
-  </div>
+    <script>
+      // ── 리사이즈 핸들 ───────────────────────────────────────
+      (function () {
+        const handle = document.getElementById("resize-handle");
+        const MIN_W = 280,
+          MIN_H = 280,
+          MAX_W = 800,
+          MAX_H = 800;
+        let dragging = false;
+        let startX = 0,
+          startY = 0,
+          startW = 0,
+          startH = 0;
 
-  <div id="status"></div>
+        handle.addEventListener("mousedown", (e) => {
+          dragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          startW = document.documentElement.clientWidth;
+          startH = document.documentElement.clientHeight;
+          e.preventDefault();
+        });
+        document.addEventListener("mousemove", (e) => {
+          if (!dragging) return;
+          const newW = Math.min(
+            Math.max(startW + (e.clientX - startX), MIN_W),
+            MAX_W,
+          );
+          const newH = Math.min(
+            Math.max(startH + (e.clientY - startY), MIN_H),
+            MAX_H,
+          );
+          parent.postMessage(
+            { pluginMessage: { type: "resize", width: newW, height: newH } },
+            "*",
+          );
+        });
+        document.addEventListener("mouseup", () => {
+          dragging = false;
+        });
+      })();
 
-  <div id="resize-handle" title="드래그하여 크기 조절"></div>
+      // ── 상수 ────────────────────────────────────────────────
+      const PR_TITLE = "chore: sync figma variables";
+      const PR_BODY =
+        "Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.";
+      const SYNC_TIMEOUT_MS = 15000;
 
-<script>
-  // ── 리사이즈 핸들 ───────────────────────────────────────
-  (function () {
-    const handle = document.getElementById('resize-handle');
-    const MIN_W = 280, MIN_H = 280, MAX_W = 800, MAX_H = 800;
-    let dragging = false;
-    let startX = 0, startY = 0, startW = 0, startH = 0;
+      // ── 상태 ────────────────────────────────────────────────
+      let pendingSyncParams = null;
+      let syncTimeoutId = null;
+      let collectionsReady = false;
+      let hasStoredToken = false; // code.ts의 token-saved/token-cleared 확인 후 갱신
 
-    handle.addEventListener('mousedown', (e) => {
-      dragging = true;
-      startX = e.clientX; startY = e.clientY;
-      startW = document.documentElement.clientWidth;
-      startH = document.documentElement.clientHeight;
-      e.preventDefault();
-    });
-    document.addEventListener('mousemove', (e) => {
-      if (!dragging) return;
-      const newW = Math.min(Math.max(startW + (e.clientX - startX), MIN_W), MAX_W);
-      const newH = Math.min(Math.max(startH + (e.clientY - startY), MIN_H), MAX_H);
-      parent.postMessage({ pluginMessage: { type: 'resize', width: newW, height: newH } }, '*');
-    });
-    document.addEventListener('mouseup', () => { dragging = false; });
-  })();
+      // ── 토큰 난독화 ─────────────────────────────────────────
+      // Figma 플러그인 UI 샌드박스는 crypto.subtle을 지원하지 않음.
+      // XOR + Base64로 평문 저장을 방지(난독화). 키가 코드에 내장되어 있어
+      // 코드를 가진 경우 복호화 가능 — UI에 경고 표시.
+      const OBF_KEY = "varsync-figma-plugin-v1-key-2024";
 
-  // ── 상수 ────────────────────────────────────────────────
-  const PR_TITLE = 'chore: sync figma variables';
-  const PR_BODY  = 'Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.';
-  const SYNC_TIMEOUT_MS = 15000;
+      /** 토큰을 XOR 난독화 후 Base64 인코딩. 반환값: Base64 문자열 */
+      function obfuscateToken(token) {
+        let out = "";
+        for (let i = 0; i < token.length; i++) {
+          out += String.fromCharCode(
+            token.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length),
+          );
+        }
+        return btoa(out);
+      }
 
-  // ── 상태 ────────────────────────────────────────────────
-  let pendingSyncParams = null;
-  let syncTimeoutId = null;
-  let collectionsReady = false;
-  let hasStoredToken = false; // code.ts의 token-saved/token-cleared 확인 후 갱신
+      /** Base64 디코딩 후 XOR 복원. 실패 시 null */
+      function deobfuscateToken(stored) {
+        try {
+          const decoded = atob(stored);
+          let out = "";
+          for (let i = 0; i < decoded.length; i++) {
+            out += String.fromCharCode(
+              decoded.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length),
+            );
+          }
+          return out || null;
+        } catch (_e) {
+          return null; // 손상된 데이터 — 호출자가 stale 처리
+        }
+      }
 
-  // ── 토큰 난독화 ─────────────────────────────────────────
-  // Figma 플러그인 UI 샌드박스는 crypto.subtle을 지원하지 않음.
-  // XOR + Base64로 평문 저장을 방지(난독화). 키가 코드에 내장되어 있어
-  // 코드를 가진 경우 복호화 가능 — UI에 경고 표시.
-  const OBF_KEY = 'varsync-figma-plugin-v1-key-2024';
+      // ── 유틸 ────────────────────────────────────────────────
+      function parseGitHubUrl(input) {
+        const match = input
+          .trim()
+          .match(/(?:github\.com\/)?([^/\s]+)\/([^/\s]+?)(?:\.git)?$/);
+        return match ? { owner: match[1], repo: match[2] } : null;
+      }
 
-  /** 토큰을 XOR 난독화 후 Base64 인코딩. 반환값: Base64 문자열 */
-  function obfuscateToken(token) {
-    let out = '';
-    for (let i = 0; i < token.length; i++) {
-      out += String.fromCharCode(
-        token.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length)
-      );
-    }
-    return btoa(out);
-  }
+      /** "My Collection Name" → "my-collection-name". 빈 문자열이면 "untitled" 반환 */
+      function toKebabCase(str) {
+        const result = str
+          .trim()
+          .toLowerCase()
+          .replace(/[\s_]+/g, "-")
+          .replace(/[^a-z0-9-]/g, "")
+          .replace(/-+/g, "-")
+          .replace(/^-|-$/g, "");
+        return result || "untitled";
+      }
 
-  /** Base64 디코딩 후 XOR 복원. 실패 시 null */
-  function deobfuscateToken(stored) {
-    try {
-      const decoded = atob(stored);
-      let out = '';
-      for (let i = 0; i < decoded.length; i++) {
-        out += String.fromCharCode(
-          decoded.charCodeAt(i) ^ OBF_KEY.charCodeAt(i % OBF_KEY.length)
+      /**
+       * 폴더 경로 정규화: 경로 순회(..) 차단, 슬래시 정규화
+       * 빈 경우 기본값 'tokens' 반환
+       */
+      function sanitizeFolderPath(raw) {
+        return (
+          raw
+            .trim()
+            .replace(/\\/g, "/")
+            .replace(/\/+/g, "/")
+            .replace(/^\/+|\/+$/g, "")
+            .split("/")
+            .filter((seg) => seg !== "" && seg !== "." && seg !== "..")
+            .join("/") || "tokens"
         );
       }
-      return out || null;
-    } catch (_e) {
-      return null; // 손상된 데이터 — 호출자가 stale 처리
-    }
-  }
 
-  // ── 유틸 ────────────────────────────────────────────────
-  function parseGitHubUrl(input) {
-    const match = input.trim().match(/(?:github\.com\/)?([^/\s]+)\/([^/\s]+?)(?:\.git)?$/);
-    return match ? { owner: match[1], repo: match[2] } : null;
-  }
+      /** 폼에서 값 읽기 */
+      function getFormValues() {
+        const selectedCollectionIds = Array.from(
+          document.querySelectorAll("[data-collection-id]:checked"),
+        ).map((el) => el.dataset.collectionId);
 
-  /** "My Collection Name" → "my-collection-name". 빈 문자열이면 "untitled" 반환 */
-  function toKebabCase(str) {
-    const result = str.trim().toLowerCase()
-      .replace(/[\s_]+/g, '-')
-      .replace(/[^a-z0-9-]/g, '')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '');
-    return result || 'untitled';
-  }
-
-  /**
-   * 폴더 경로 정규화: 경로 순회(..) 차단, 슬래시 정규화
-   * 빈 경우 기본값 'tokens' 반환
-   */
-  function sanitizeFolderPath(raw) {
-    return raw
-      .trim()
-      .replace(/\\/g, '/')
-      .replace(/\/+/g, '/')
-      .replace(/^\/+|\/+$/g, '')
-      .split('/')
-      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
-      .join('/')
-      || 'tokens';
-  }
-
-  /** 폼에서 값 읽기 */
-  function getFormValues() {
-    const selectedCollectionIds = Array.from(
-      document.querySelectorAll('[data-collection-id]:checked')
-    ).map((el) => el.dataset.collectionId);
-
-    return {
-      repoInput:      document.getElementById('repo').value,
-      token:          document.getElementById('token').value.trim(),
-      baseBranch:     document.getElementById('base-branch').value.trim() || 'main',
-      newBranchInput: document.getElementById('new-branch').value.trim(),
-      folderPath:     sanitizeFolderPath(document.getElementById('folder-path').value),
-      selectedCollectionIds,
-    };
-  }
-
-  /** 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지) */
-  function setStatus(type, lines, link = null) {
-    const el = document.getElementById('status');
-    el.className = type;
-    el.textContent = '';
-    lines.forEach((line, i) => {
-      if (i > 0) el.appendChild(document.createElement('br'));
-      el.appendChild(document.createTextNode(line));
-    });
-    if (link) {
-      el.appendChild(document.createElement('br'));
-      const a = document.createElement('a');
-      a.href = link.url;
-      a.target = '_blank';
-      a.textContent = link.label;
-      el.appendChild(a);
-    }
-  }
-
-  function clearStatus() {
-    const el = document.getElementById('status');
-    el.className = '';
-    el.textContent = '';
-    el.style.display = 'none';
-  }
-
-  function setLoading(isLoading) {
-    document.getElementById('btn-test').disabled = isLoading;
-    document.getElementById('btn-next').disabled = isLoading;
-    document.getElementById('btn-back').disabled = isLoading;
-    document.getElementById('btn-sync').disabled = isLoading || !collectionsReady;
-  }
-
-  function githubHeaders(token) {
-    return {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    };
-  }
-
-  /** UTF-8 문자열을 Base64로 안전하게 인코딩 (32KB 청크 단위 처리) */
-  function toBase64(str) {
-    const bytes = new TextEncoder().encode(str);
-    const CHUNK = 32768;
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-    }
-    return btoa(binary);
-  }
-
-  // ── 스텝 네비게이션 ──────────────────────────────────────
-  function showStep(n) {
-    document.getElementById('step-1').hidden = (n !== 1);
-    document.getElementById('step-2').hidden = (n !== 2);
-    // step 1로 돌아오면 active로 복원 (done 유지 X)
-    document.getElementById('step-dot-1').className = n === 1 ? 'step-dot active' : 'step-dot done';
-    document.getElementById('step-dot-2').className = n === 2 ? 'step-dot active' : 'step-dot';
-    // 뒤로 가기 시 에러 컨텍스트 보존 — 앞으로 갈 때만 클리어
-    if (n === 2) clearStatus();
-  }
-
-  // ── 경로 미리보기 ────────────────────────────────────────
-  function updatePathPreview() {
-    const sanitized = sanitizeFolderPath(document.getElementById('folder-path').value);
-    document.getElementById('path-preview-text').textContent = `./${sanitized}`;
-  }
-
-  document.getElementById('folder-path').addEventListener('input', updatePathPreview);
-
-  // ── 컬렉션 목록 렌더링 ──────────────────────────────────
-  function renderCollections(collections) {
-    const list = document.getElementById('collections-list');
-    list.textContent = '';
-
-    if (collections.length === 0) {
-      const msg = document.createElement('span');
-      msg.style.cssText = 'font-size:11px;color:#888;';
-      msg.textContent = '컬렉션이 없습니다.';
-      list.appendChild(msg);
-      return;
-    }
-
-    collections.forEach((col) => {
-      const lbl = document.createElement('label');
-      lbl.className = 'checkbox-label';
-
-      const chk = document.createElement('input');
-      chk.type = 'checkbox';
-      chk.dataset.collectionId = col.id;
-      chk.checked = true;
-
-      const name = document.createTextNode(col.name);
-      const count = document.createElement('span');
-      count.className = 'count';
-      count.textContent = `(${col.variableCount})`;
-
-      lbl.appendChild(chk);
-      lbl.appendChild(name);
-      lbl.appendChild(count);
-      list.appendChild(lbl);
-    });
-
-    collectionsReady = true;
-    document.getElementById('btn-sync').disabled = false;
-  }
-
-  // ── GitHub API 헬퍼 ────────────────────────────────────
-  async function getBranchSha(owner, repo, branch, token) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
-      { headers: githubHeaders(token) }
-    );
-    if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
-    const data = await res.json();
-    return data.object.sha;
-  }
-
-  /** 브랜치가 존재하면 SHA 반환, 없으면 null */
-  async function getBranchShaMaybe(owner, repo, branch, token) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
-      { headers: githubHeaders(token) }
-    );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
-    const data = await res.json();
-    return data.object.sha;
-  }
-
-  async function getFileSha(owner, repo, path, branch, token) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
-      { headers: githubHeaders(token) }
-    );
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`파일 SHA 조회 실패 (${res.status})`);
-    const data = await res.json();
-    return data.sha;
-  }
-
-  async function createBranch(owner, repo, newBranch, sha, token) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/git/refs`,
-      {
-        method: 'POST',
-        headers: githubHeaders(token),
-        body: JSON.stringify({ ref: `refs/heads/${newBranch}`, sha }),
+        return {
+          repoInput: document.getElementById("repo").value,
+          token: document.getElementById("token").value.trim(),
+          baseBranch:
+            document.getElementById("base-branch").value.trim() || "main",
+          newBranchInput: document.getElementById("new-branch").value.trim(),
+          folderPath: sanitizeFolderPath(
+            document.getElementById("folder-path").value,
+          ),
+          selectedCollectionIds,
+        };
       }
-    );
-    if (!res.ok) throw new Error(`브랜치 생성 실패 (${res.status})`);
-  }
 
-  async function putFile(owner, repo, path, content, message, branch, token, existingSha) {
-    const body = { message, content: toBase64(content), branch };
-    if (existingSha) body.sha = existingSha;
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
-      { method: 'PUT', headers: githubHeaders(token), body: JSON.stringify(body) }
-    );
-    if (!res.ok) throw new Error(`파일 커밋 실패 (${path}, ${res.status})`);
-  }
-
-  async function createPR(owner, repo, head, base, token) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls`,
-      {
-        method: 'POST',
-        headers: githubHeaders(token),
-        body: JSON.stringify({ title: PR_TITLE, head, base, body: PR_BODY }),
-      }
-    );
-    if (!res.ok) throw new Error(`PR 생성 실패 (${res.status})`);
-    const data = await res.json();
-    return data.html_url;
-  }
-
-  // ── 토큰 저장 UI 제어 ───────────────────────────────────
-  function updateTokenSaveUI() {
-    const saveChecked = document.getElementById('chk-save-token').checked;
-    document.getElementById('token-warning').hidden = !saveChecked;
-    document.getElementById('btn-clear-token').hidden = !hasStoredToken;
-  }
-
-  document.getElementById('chk-save-token').addEventListener('change', updateTokenSaveUI);
-
-  document.getElementById('btn-clear-token').addEventListener('click', () => {
-    // code.ts가 token-cleared 확인 메시지를 보낸 후 상태 갱신
-    parent.postMessage({ pluginMessage: { type: 'clear-token' } }, '*');
-    document.getElementById('chk-save-token').checked = false;
-    document.getElementById('token').value = '';
-    setStatus('info', ['저장된 토큰을 삭제 중...']);
-  });
-
-  // ── Step 1 버튼 ────────────────────────────────────────
-  document.getElementById('btn-test').addEventListener('click', async () => {
-    const { repoInput, token, baseBranch } = getFormValues();
-    const parsed = parseGitHubUrl(repoInput);
-    if (!parsed) return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
-    if (!token)  return setStatus('error', ['Personal Access Token을 입력해주세요.']);
-
-    setLoading(true);
-    setStatus('info', ['연결 테스트 중...']);
-    try {
-      const sha = await getBranchSha(parsed.owner, parsed.repo, baseBranch, token);
-      setStatus('success', [
-        '연결 성공!',
-        `${parsed.owner}/${parsed.repo} @ ${baseBranch}`,
-        `SHA: ${sha.slice(0, 7)}`,
-      ]);
-    } catch (e) {
-      setStatus('error', [`연결 실패: ${e.message}`]);
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // GitHub 브랜치명 규칙: 공백·제어문자·특수기호 불가
-  const INVALID_BRANCH_RE = /[\s~^:?*\[\\]|\.\.|\/$|^\.|\.lock$/;
-
-  document.getElementById('btn-next').addEventListener('click', () => {
-    const { repoInput, token, baseBranch, newBranchInput } = getFormValues();
-    const parsed = parseGitHubUrl(repoInput);
-    if (!parsed)     return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
-    if (!token)      return setStatus('error', ['Personal Access Token을 입력해주세요.']);
-    if (!baseBranch) return setStatus('error', ['Base Branch를 입력해주세요.']);
-    if (newBranchInput && INVALID_BRANCH_RE.test(newBranchInput)) {
-      return setStatus('error', ['브랜치 이름에 사용할 수 없는 문자가 포함되어 있습니다. (공백, ~, ^, :, ?, * 등 불가)']);
-    }
-
-    // "토큰 저장" 체크 시 난독화 후 저장 (hasStoredToken은 token-saved 확인 후 갱신)
-    if (document.getElementById('chk-save-token').checked && token) {
-      const encrypted = obfuscateToken(token);
-      parent.postMessage({ pluginMessage: { type: 'save-token', payload: { encrypted } } }, '*');
-    }
-
-    showStep(2);
-  });
-
-  // ── Step 2 버튼 ────────────────────────────────────────
-  document.getElementById('btn-back').addEventListener('click', () => {
-    showStep(1);
-  });
-
-  document.getElementById('btn-sync').addEventListener('click', () => {
-    const { repoInput, token, baseBranch, newBranchInput, folderPath, selectedCollectionIds } = getFormValues();
-
-    const parsed = parseGitHubUrl(repoInput);
-    if (!parsed) { showStep(1); return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']); }
-    if (!token)  { showStep(1); return setStatus('error', ['Personal Access Token을 입력해주세요.']); }
-    if (selectedCollectionIds.length === 0) return setStatus('error', ['하나 이상의 컬렉션을 선택해주세요.']);
-
-    // 브랜치명: 사용자 입력 우선, 없으면 타임스탬프 자동 생성
-    const _d = new Date();
-    const _pad = (n) => String(n).padStart(2, '0');
-    const timestamp = `${_d.getFullYear()}${_pad(_d.getMonth()+1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}`;
-    const newBranch = newBranchInput || `figma-sync/${timestamp}`;
-
-    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, newBranch, folderPath };
-
-    setLoading(true);
-    setStatus('info', [`Figma 변수를 읽는 중... (${selectedCollectionIds.length}개 컬렉션)`]);
-
-    syncTimeoutId = setTimeout(() => {
-      pendingSyncParams = null;
-      syncTimeoutId = null;
-      setLoading(false);
-      setStatus('error', ['응답 시간 초과. 다시 시도해주세요.']);
-    }, SYNC_TIMEOUT_MS);
-
-    parent.postMessage({
-      pluginMessage: { type: 'request-variables', payload: { selectedCollectionIds } }
-    }, '*');
-  });
-
-  // ── Plugin Main으로부터 메시지 수신 ─────────────────────
-  window.addEventListener('message', async (event) => {
-    if (event.source !== window.parent) return;
-
-    const msg = event.data.pluginMessage;
-    if (!msg) return;
-
-    if (msg.type === 'collections-loaded') {
-      renderCollections(msg.payload.collections);
-      return;
-    }
-
-    // 플러그인 시작 시 저장된 토큰 복호화 후 자동 입력
-    if (msg.type === 'stored-token') {
-      if (msg.payload.encrypted) {
-        const plainToken = deobfuscateToken(msg.payload.encrypted);
-        if (plainToken) {
-          document.getElementById('token').value = plainToken;
-          document.getElementById('chk-save-token').checked = true;
-          hasStoredToken = true;
-          updateTokenSaveUI();
-        } else {
-          // 복원 실패 = stale 또는 손상된 데이터 → 자동 삭제
-          parent.postMessage({ pluginMessage: { type: 'clear-token' } }, '*');
+      /** 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지) */
+      function setStatus(type, lines, link = null) {
+        const el = document.getElementById("status");
+        el.className = type;
+        el.textContent = "";
+        lines.forEach((line, i) => {
+          if (i > 0) el.appendChild(document.createElement("br"));
+          el.appendChild(document.createTextNode(line));
+        });
+        if (link) {
+          el.appendChild(document.createElement("br"));
+          const a = document.createElement("a");
+          a.href = link.url;
+          a.target = "_blank";
+          a.textContent = link.label;
+          el.appendChild(a);
         }
       }
-      return;
-    }
 
-    // save-token 결과 확인 — 실제 저장 성공 후 hasStoredToken 갱신
-    if (msg.type === 'token-saved') {
-      hasStoredToken = msg.payload.success;
-      if (!msg.payload.success) {
-        setStatus('error', ['토큰 저장에 실패했습니다. 다시 시도해주세요.']);
+      function clearStatus() {
+        const el = document.getElementById("status");
+        el.className = "";
+        el.textContent = "";
+        el.style.display = "none";
       }
-      updateTokenSaveUI();
-      return;
-    }
 
-    // clear-token 결과 확인
-    if (msg.type === 'token-cleared') {
-      hasStoredToken = false;
-      updateTokenSaveUI();
-      if (msg.payload.success) {
-        setStatus('info', ['저장된 토큰이 삭제되었습니다.']);
+      function setLoading(isLoading) {
+        document.getElementById("btn-test").disabled = isLoading;
+        document.getElementById("btn-next").disabled = isLoading;
+        document.getElementById("btn-back").disabled = isLoading;
+        document.getElementById("btn-sync").disabled =
+          isLoading || !collectionsReady;
       }
-      return;
-    }
 
-    clearTimeout(syncTimeoutId);
-    syncTimeoutId = null;
+      function githubHeaders(token) {
+        return {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        };
+      }
 
-    if (msg.type === 'variables-data') {
-      if (!pendingSyncParams) return;
-      const { owner, repo, token, baseBranch, newBranch, folderPath } = pendingSyncParams;
-      const files = msg.payload.files; // CollectionFilePayload[]
-      pendingSyncParams = null;
-
-      try {
-        // 브랜치 존재 여부 확인: 있으면 재사용, 없으면 base 기준 생성
-        setStatus('info', ['브랜치 확인 중...']);
-        const existingBranchSha = await getBranchShaMaybe(owner, repo, newBranch, token);
-
-        if (existingBranchSha) {
-          setStatus('info', [`"${newBranch}" 브랜치 재사용`]);
-        } else {
-          const baseSha = await getBranchSha(owner, repo, baseBranch, token);
-          await createBranch(owner, repo, newBranch, baseSha, token);
-          setStatus('info', [`"${newBranch}" 브랜치 생성 완료`]);
+      /** UTF-8 문자열을 Base64로 안전하게 인코딩 (32KB 청크 단위 처리) */
+      function toBase64(str) {
+        const bytes = new TextEncoder().encode(str);
+        const CHUNK = 32768;
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += CHUNK) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
         }
+        return btoa(binary);
+      }
 
-        setStatus('info', ['파일 커밋 중...']);
+      // ── 스텝 네비게이션 ──────────────────────────────────────
+      function showStep(n) {
+        document.getElementById("step-1").hidden = n !== 1;
+        document.getElementById("step-2").hidden = n !== 2;
+        // step 1로 돌아오면 active로 복원 (done 유지 X)
+        document.getElementById("step-dot-1").className =
+          n === 1 ? "step-dot active" : "step-dot done";
+        document.getElementById("step-dot-2").className =
+          n === 2 ? "step-dot active" : "step-dot";
+        // 뒤로 가기 시 에러 컨텍스트 보존 — 앞으로 갈 때만 클리어
+        if (n === 2) clearStatus();
+      }
 
-        const encodeRepoPath = (p) => p.split('/').map(encodeURIComponent).join('/');
-        const filePaths = files.map((f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`);
-
-        // 파일 경로 중복 감지
-        const seen = new Set();
-        for (const p of filePaths) {
-          if (seen.has(p)) throw new Error(`파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`);
-          seen.add(p);
-        }
-
-        const encodedFilePaths = filePaths.map(encodeRepoPath);
-
-        // 기존 파일 SHA 병렬 조회 (newBranch 기준)
-        const existingShas = await Promise.all(
-          encodedFilePaths.map((path) => getFileSha(owner, repo, path, newBranch, token))
+      // ── 경로 미리보기 ────────────────────────────────────────
+      function updatePathPreview() {
+        const sanitized = sanitizeFolderPath(
+          document.getElementById("folder-path").value,
         );
+        document.getElementById("path-preview-text").textContent =
+          `./${sanitized}`;
+      }
 
-        // 컬렉션별 순차 커밋
-        for (let i = 0; i < files.length; i++) {
-          const { collectionName, tokensJson } = files[i];
-          await putFile(
-            owner, repo, encodedFilePaths[i], tokensJson,
-            `chore: sync "${collectionName}" tokens from Figma`,
-            newBranch, token, existingShas[i]
+      document
+        .getElementById("folder-path")
+        .addEventListener("input", updatePathPreview);
+
+      // ── 컬렉션 목록 렌더링 ──────────────────────────────────
+      function renderCollections(collections) {
+        const list = document.getElementById("collections-list");
+        list.textContent = "";
+
+        if (collections.length === 0) {
+          const msg = document.createElement("span");
+          msg.style.cssText = "font-size:11px;color:#888;";
+          msg.textContent = "컬렉션이 없습니다.";
+          list.appendChild(msg);
+          return;
+        }
+
+        collections.forEach((col) => {
+          const lbl = document.createElement("label");
+          lbl.className = "checkbox-label";
+
+          const chk = document.createElement("input");
+          chk.type = "checkbox";
+          chk.dataset.collectionId = col.id;
+          chk.checked = true;
+
+          const name = document.createTextNode(col.name);
+          const count = document.createElement("span");
+          count.className = "count";
+          count.textContent = `(${col.variableCount})`;
+
+          lbl.appendChild(chk);
+          lbl.appendChild(name);
+          lbl.appendChild(count);
+          list.appendChild(lbl);
+        });
+
+        collectionsReady = true;
+        document.getElementById("btn-sync").disabled = false;
+      }
+
+      // ── GitHub API 헬퍼 ────────────────────────────────────
+      async function getBranchSha(owner, repo, branch, token) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+          { headers: githubHeaders(token) },
+        );
+        if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
+        const data = await res.json();
+        return data.object.sha;
+      }
+
+      /** 브랜치가 존재하면 SHA 반환, 없으면 null */
+      async function getBranchShaMaybe(owner, repo, branch, token) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+          { headers: githubHeaders(token) },
+        );
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
+        const data = await res.json();
+        return data.object.sha;
+      }
+
+      async function getFileSha(owner, repo, path, branch, token) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+          { headers: githubHeaders(token) },
+        );
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`파일 SHA 조회 실패 (${res.status})`);
+        const data = await res.json();
+        return data.sha;
+      }
+
+      async function createBranch(owner, repo, newBranch, sha, token) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/git/refs`,
+          {
+            method: "POST",
+            headers: githubHeaders(token),
+            body: JSON.stringify({ ref: `refs/heads/${newBranch}`, sha }),
+          },
+        );
+        if (!res.ok) throw new Error(`브랜치 생성 실패 (${res.status})`);
+      }
+
+      async function putFile(
+        owner,
+        repo,
+        path,
+        content,
+        message,
+        branch,
+        token,
+        existingSha,
+      ) {
+        const body = { message, content: toBase64(content), branch };
+        if (existingSha) body.sha = existingSha;
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
+          {
+            method: "PUT",
+            headers: githubHeaders(token),
+            body: JSON.stringify(body),
+          },
+        );
+        if (!res.ok) throw new Error(`파일 커밋 실패 (${path}, ${res.status})`);
+      }
+
+      async function createPR(owner, repo, head, base, token) {
+        const res = await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/pulls`,
+          {
+            method: "POST",
+            headers: githubHeaders(token),
+            body: JSON.stringify({
+              title: PR_TITLE,
+              head,
+              base,
+              body: PR_BODY,
+            }),
+          },
+        );
+        if (!res.ok) throw new Error(`PR 생성 실패 (${res.status})`);
+        const data = await res.json();
+        return data.html_url;
+      }
+
+      // ── 토큰 저장 UI 제어 ───────────────────────────────────
+      function updateTokenSaveUI() {
+        const saveChecked = document.getElementById("chk-save-token").checked;
+        document.getElementById("token-warning").hidden = !saveChecked;
+        document.getElementById("btn-clear-token").hidden = !hasStoredToken;
+      }
+
+      document
+        .getElementById("chk-save-token")
+        .addEventListener("change", updateTokenSaveUI);
+
+      document
+        .getElementById("btn-clear-token")
+        .addEventListener("click", () => {
+          // code.ts가 token-cleared 확인 메시지를 보낸 후 상태 갱신
+          parent.postMessage({ pluginMessage: { type: "clear-token" } }, "*");
+          document.getElementById("chk-save-token").checked = false;
+          document.getElementById("token").value = "";
+          setStatus("info", ["저장된 토큰을 삭제 중..."]);
+        });
+
+      // ── Step 1 버튼 ────────────────────────────────────────
+      document
+        .getElementById("btn-test")
+        .addEventListener("click", async () => {
+          const { repoInput, token, baseBranch } = getFormValues();
+          const parsed = parseGitHubUrl(repoInput);
+          if (!parsed)
+            return setStatus("error", [
+              "올바른 Repository 주소를 입력해주세요.",
+            ]);
+          if (!token)
+            return setStatus("error", [
+              "Personal Access Token을 입력해주세요.",
+            ]);
+
+          setLoading(true);
+          setStatus("info", ["연결 테스트 중..."]);
+          try {
+            const sha = await getBranchSha(
+              parsed.owner,
+              parsed.repo,
+              baseBranch,
+              token,
+            );
+            setStatus("success", [
+              "연결 성공!",
+              `${parsed.owner}/${parsed.repo} @ ${baseBranch}`,
+              `SHA: ${sha.slice(0, 7)}`,
+            ]);
+          } catch (e) {
+            setStatus("error", [`연결 실패: ${e.message}`]);
+          } finally {
+            setLoading(false);
+          }
+        });
+
+      // GitHub 브랜치명 규칙: 공백·제어문자·특수기호 불가
+      const INVALID_BRANCH_RE = /[\s~^:?*\[\\]|\.\.|\/$|^\.|\.lock$/;
+
+      document.getElementById("btn-next").addEventListener("click", () => {
+        const { repoInput, token, baseBranch, newBranchInput } =
+          getFormValues();
+        const parsed = parseGitHubUrl(repoInput);
+        if (!parsed)
+          return setStatus("error", ["올바른 Repository 주소를 입력해주세요."]);
+        if (!token)
+          return setStatus("error", ["Personal Access Token을 입력해주세요."]);
+        if (!baseBranch)
+          return setStatus("error", ["Base Branch를 입력해주세요."]);
+        if (newBranchInput && INVALID_BRANCH_RE.test(newBranchInput)) {
+          return setStatus("error", [
+            "브랜치 이름에 사용할 수 없는 문자가 포함되어 있습니다. (공백, ~, ^, :, ?, * 등 불가)",
+          ]);
+        }
+
+        // "토큰 저장" 체크 시 난독화 후 저장 (hasStoredToken은 token-saved 확인 후 갱신)
+        if (document.getElementById("chk-save-token").checked && token) {
+          const encrypted = obfuscateToken(token);
+          parent.postMessage(
+            { pluginMessage: { type: "save-token", payload: { encrypted } } },
+            "*",
           );
         }
 
-        setStatus('info', ['PR 생성 중...']);
-        const prUrl = await createPR(owner, repo, newBranch, baseBranch, token);
-        setStatus('success', ['PR이 생성되었습니다!'], { url: prUrl, label: prUrl });
-      } catch (e) {
-        setStatus('error', [`오류: ${e.message}`]);
-      } finally {
-        setLoading(false);
-      }
-    }
+        showStep(2);
+      });
 
-    if (msg.type === 'error') {
-      pendingSyncParams = null;
-      setStatus('error', [`플러그인 오류: ${msg.message}`]);
-      setLoading(false);
-    }
-  });
-</script>
-</body>
+      // ── Step 2 버튼 ────────────────────────────────────────
+      document.getElementById("btn-back").addEventListener("click", () => {
+        showStep(1);
+      });
+
+      document.getElementById("btn-sync").addEventListener("click", () => {
+        const {
+          repoInput,
+          token,
+          baseBranch,
+          newBranchInput,
+          folderPath,
+          selectedCollectionIds,
+        } = getFormValues();
+
+        const parsed = parseGitHubUrl(repoInput);
+        if (!parsed) {
+          showStep(1);
+          return setStatus("error", ["올바른 Repository 주소를 입력해주세요."]);
+        }
+        if (!token) {
+          showStep(1);
+          return setStatus("error", ["Personal Access Token을 입력해주세요."]);
+        }
+        if (selectedCollectionIds.length === 0)
+          return setStatus("error", ["하나 이상의 컬렉션을 선택해주세요."]);
+
+        // 브랜치명: 사용자 입력 우선, 없으면 타임스탬프 자동 생성
+        const _d = new Date();
+        const _pad = (n) => String(n).padStart(2, "0");
+        const timestamp = `${_d.getFullYear()}${_pad(_d.getMonth() + 1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}`;
+        const newBranch = newBranchInput || `figma-sync/${timestamp}`;
+
+        pendingSyncParams = {
+          owner: parsed.owner,
+          repo: parsed.repo,
+          token,
+          baseBranch,
+          newBranch,
+          folderPath,
+        };
+
+        setLoading(true);
+        setStatus("info", [
+          `Figma 변수를 읽는 중... (${selectedCollectionIds.length}개 컬렉션)`,
+        ]);
+
+        syncTimeoutId = setTimeout(() => {
+          pendingSyncParams = null;
+          syncTimeoutId = null;
+          setLoading(false);
+          setStatus("error", ["응답 시간 초과. 다시 시도해주세요."]);
+        }, SYNC_TIMEOUT_MS);
+
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "request-variables",
+              payload: { selectedCollectionIds },
+            },
+          },
+          "*",
+        );
+      });
+
+      // ── Plugin Main으로부터 메시지 수신 ─────────────────────
+      window.addEventListener("message", async (event) => {
+        if (event.source !== window.parent) return;
+
+        const msg = event.data.pluginMessage;
+        if (!msg) return;
+
+        if (msg.type === "collections-loaded") {
+          renderCollections(msg.payload.collections);
+          return;
+        }
+
+        // 플러그인 시작 시 저장된 토큰 복호화 후 자동 입력
+        if (msg.type === "stored-token") {
+          if (msg.payload.encrypted) {
+            const plainToken = deobfuscateToken(msg.payload.encrypted);
+            if (plainToken) {
+              document.getElementById("token").value = plainToken;
+              document.getElementById("chk-save-token").checked = true;
+              hasStoredToken = true;
+              updateTokenSaveUI();
+            } else {
+              // 복원 실패 = stale 또는 손상된 데이터 → 자동 삭제
+              parent.postMessage(
+                { pluginMessage: { type: "clear-token" } },
+                "*",
+              );
+            }
+          }
+          return;
+        }
+
+        // save-token 결과 확인 — 실제 저장 성공 후 hasStoredToken 갱신
+        if (msg.type === "token-saved") {
+          hasStoredToken = msg.payload.success;
+          if (!msg.payload.success) {
+            setStatus("error", [
+              "토큰 저장에 실패했습니다. 다시 시도해주세요.",
+            ]);
+          }
+          updateTokenSaveUI();
+          return;
+        }
+
+        // clear-token 결과 확인
+        if (msg.type === "token-cleared") {
+          hasStoredToken = false;
+          updateTokenSaveUI();
+          if (msg.payload.success) {
+            setStatus("info", ["저장된 토큰이 삭제되었습니다."]);
+          }
+          return;
+        }
+
+        clearTimeout(syncTimeoutId);
+        syncTimeoutId = null;
+
+        if (msg.type === "variables-data") {
+          if (!pendingSyncParams) return;
+          const { owner, repo, token, baseBranch, newBranch, folderPath } =
+            pendingSyncParams;
+          const files = msg.payload.files; // CollectionFilePayload[]
+          pendingSyncParams = null;
+
+          try {
+            // 브랜치 존재 여부 확인: 있으면 재사용, 없으면 base 기준 생성
+            setStatus("info", ["브랜치 확인 중..."]);
+            const existingBranchSha = await getBranchShaMaybe(
+              owner,
+              repo,
+              newBranch,
+              token,
+            );
+
+            if (existingBranchSha) {
+              setStatus("info", [`"${newBranch}" 브랜치 재사용`]);
+            } else {
+              const baseSha = await getBranchSha(
+                owner,
+                repo,
+                baseBranch,
+                token,
+              );
+              await createBranch(owner, repo, newBranch, baseSha, token);
+              setStatus("info", [`"${newBranch}" 브랜치 생성 완료`]);
+            }
+
+            setStatus("info", ["파일 커밋 중..."]);
+
+            const encodeRepoPath = (p) =>
+              p.split("/").map(encodeURIComponent).join("/");
+            const filePaths = files.map(
+              (f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`,
+            );
+
+            // 파일 경로 중복 감지
+            const seen = new Set();
+            for (const p of filePaths) {
+              if (seen.has(p))
+                throw new Error(
+                  `파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`,
+                );
+              seen.add(p);
+            }
+
+            const encodedFilePaths = filePaths.map(encodeRepoPath);
+
+            // 기존 파일 SHA 병렬 조회 (newBranch 기준)
+            const existingShas = await Promise.all(
+              encodedFilePaths.map((path) =>
+                getFileSha(owner, repo, path, newBranch, token),
+              ),
+            );
+
+            // 컬렉션별 순차 커밋
+            for (let i = 0; i < files.length; i++) {
+              const { collectionName, tokensJson } = files[i];
+              await putFile(
+                owner,
+                repo,
+                encodedFilePaths[i],
+                tokensJson,
+                `chore: sync "${collectionName}" tokens from Figma`,
+                newBranch,
+                token,
+                existingShas[i],
+              );
+            }
+
+            setStatus("info", ["PR 생성 중..."]);
+            const prUrl = await createPR(
+              owner,
+              repo,
+              newBranch,
+              baseBranch,
+              token,
+            );
+            setStatus("success", ["PR이 생성되었습니다!"], {
+              url: prUrl,
+              label: prUrl,
+            });
+          } catch (e) {
+            setStatus("error", [`오류: ${e.message}`]);
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        if (msg.type === "error") {
+          pendingSyncParams = null;
+          setStatus("error", [`플러그인 오류: ${msg.message}`]);
+          setLoading(false);
+        }
+      });
+    </script>
+  </body>
 </html>
