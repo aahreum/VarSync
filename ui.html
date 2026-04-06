@@ -444,6 +444,7 @@
     }
 
     if (msg.type === 'error') {
+      pendingSyncParams = null; // 에러 경로에서도 토큰 즉시 클리어
       setStatus('error', [`플러그인 오류: ${msg.message}`]);
       setLoading(false);
     }
