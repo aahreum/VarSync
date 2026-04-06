@@ -6,5 +6,11 @@
         "type": "color"
       }
     }
+  },
+  "spacing": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    }
   }
 }
