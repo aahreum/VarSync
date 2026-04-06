@@ -2,6 +2,7 @@
   "name": "VarSync",
   "id": "1622873861453974558",
   "api": "1.0.0",
+  "version": "1.0.1",
   "main": "code.js",
   "capabilities": [],
   "enableProposedApi": false,
