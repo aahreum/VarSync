@@ -594,6 +594,7 @@
       /** 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지) */
       function setStatus(type, lines, link = null) {
         const el = document.getElementById("status");
+        el.style.display = ""; // 인라인 display 초기화 — CSS 클래스가 제어하도록
         el.className = type;
         el.textContent = "";
         lines.forEach((line, i) => {
@@ -614,7 +615,9 @@
         const el = document.getElementById("status");
         el.className = "";
         el.textContent = "";
-        el.style.display = "none";
+        // display는 인라인 스타일로 설정하지 않음:
+        // CSS에서 #status { display: none } + #status.info/success/error { display: block }
+        // 인라인 style="display:none"은 CSS 클래스보다 우선하여 이후 setStatus가 동작하지 않음
       }
 
       function setLoading(isLoading) {
