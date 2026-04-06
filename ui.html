@@ -392,7 +392,7 @@
 
       <div class="field">
         <label for="base-branch">Base Branch</label>
-        <input id="base-branch" type="text" placeholder="main" value="main" />
+        <input id="base-branch" type="text" placeholder="dev" value="dev" />
       </div>
 
       <div class="field">
@@ -409,11 +409,12 @@
         <input
           id="folder-path"
           type="text"
-          placeholder="tokens"
-          value="tokens"
+          placeholder="packages/tokens/src/raw"
+          value="packages/tokens/src/raw"
         />
         <div class="path-preview">
-          저장 위치: <code id="path-preview-text">./tokens</code>
+          저장 위치:
+          <code id="path-preview-text">./packages/tokens/src/raw</code>
         </div>
       </div>
 
@@ -491,9 +492,54 @@
       })();
 
       // ── 상수 ────────────────────────────────────────────────
-      const PR_TITLE = "chore: sync figma variables";
-      const PR_BODY =
-        "Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.";
+      const PR_TITLE = "⚙️ Chore: sync figma variables";
+      function buildPRBody(files) {
+        const lines = [
+          "## Figma Variables Sync",
+          "",
+          "Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.",
+          "",
+          "### 포함된 컬렉션",
+          "",
+        ];
+
+        let totalCount = 0;
+        for (const f of files) {
+          const tokens = JSON.parse(f.tokensJson);
+          const stats = countTokensByType(tokens);
+          const count = Object.values(stats).reduce((a, b) => a + b, 0);
+          totalCount += count;
+
+          lines.push(`#### ${f.collectionName} (${count}개)`);
+          const typeLabels = { color: "Color", number: "Number", string: "String", boolean: "Boolean" };
+          for (const [type, label] of Object.entries(typeLabels)) {
+            if (stats[type]) lines.push(`- ${label}: ${stats[type]}건`);
+          }
+          lines.push("");
+        }
+
+        lines.push(`> 총 **${totalCount}개** 토큰 · ${files.length}개 컬렉션`);
+
+        return lines.join("\n");
+      }
+
+      /** 중첩된 TokenGroup에서 타입별 토큰 수를 집계한다 */
+      function countTokensByType(obj) {
+        const stats = {};
+        for (const key of Object.keys(obj)) {
+          const val = obj[key];
+          if (val != null && typeof val === "object" && "value" in val) {
+            const t = val.type || "unknown";
+            stats[t] = (stats[t] || 0) + 1;
+          } else if (val != null && typeof val === "object") {
+            const sub = countTokensByType(val);
+            for (const [t, c] of Object.entries(sub)) {
+              stats[t] = (stats[t] || 0) + c;
+            }
+          }
+        }
+        return stats;
+      }
       const SYNC_TIMEOUT_MS = 15000;
 
       // ── 상태 ────────────────────────────────────────────────
@@ -568,7 +614,7 @@
             .replace(/^\/+|\/+$/g, "")
             .split("/")
             .filter((seg) => seg !== "" && seg !== "." && seg !== "..")
-            .join("/") || "tokens"
+            .join("/") || "packages/tokens/src/raw"
         );
       }
 
@@ -582,7 +628,7 @@
           repoInput: document.getElementById("repo").value,
           token: document.getElementById("token").value.trim(),
           baseBranch:
-            document.getElementById("base-branch").value.trim() || "main",
+            document.getElementById("base-branch").value.trim() || "dev",
           newBranchInput: document.getElementById("new-branch").value.trim(),
           folderPath: sanitizeFolderPath(
             document.getElementById("folder-path").value,
@@ -788,7 +834,7 @@
         if (!res.ok) throw new Error(`파일 커밋 실패 (${path}, ${res.status})`);
       }
 
-      async function createPR(owner, repo, head, base, token) {
+      async function createPR(owner, repo, head, base, token, files) {
         const res = await fetch(
           `https://api.github.com/repos/${owner}/${repo}/pulls`,
           {
@@ -798,7 +844,7 @@
               title: PR_TITLE,
               head,
               base,
-              body: PR_BODY,
+              body: buildPRBody(files),
             }),
           },
         );
@@ -882,6 +928,17 @@
             "브랜치 이름에 사용할 수 없는 문자가 포함되어 있습니다. (공백, ~, ^, :, ?, * 등 불가)",
           ]);
         }
+
+        // repo URL 저장
+        parent.postMessage(
+          {
+            pluginMessage: {
+              type: "save-repo",
+              payload: { repo: repoInput.trim() },
+            },
+          },
+          "*",
+        );
 
         // "토큰 저장" 체크 시 난독화 후 저장 (hasStoredToken은 token-saved 확인 후 갱신)
         if (document.getElementById("chk-save-token").checked && token) {
@@ -994,6 +1051,14 @@
           return;
         }
 
+        // 저장된 repo URL 복원
+        if (msg.type === "stored-repo") {
+          if (msg.payload.repo) {
+            document.getElementById("repo").value = msg.payload.repo;
+          }
+          return;
+        }
+
         // save-token 결과 확인 — 실제 저장 성공 후 hasStoredToken 갱신
         if (msg.type === "token-saved") {
           hasStoredToken = msg.payload.success;
@@ -1098,6 +1163,7 @@
               newBranch,
               baseBranch,
               token,
+              files,
             );
             setStatus("success", ["PR이 생성되었습니다!"], {
               url: prUrl,
