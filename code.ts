@@ -44,7 +44,13 @@ function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
 // ── 메시지 타입 ───────────────────────────────────────────
 
 type PluginMessage =
-  | { type: "request-variables"; payload: { selectedCollectionIds: string[] } }
+  | {
+      type: "request-variables";
+      payload: {
+        selectedCollectionIds: string[];
+        excludedGroups?: Record<string, string[]>;
+      };
+    }
   | { type: "request-collections" }
   | { type: "save-token"; payload: { encrypted: string } }
   | { type: "clear-token" }
@@ -54,21 +60,74 @@ type PluginMessage =
 
 // ── 컬렉션 목록 전송 (시작 시 + 재요청 시 공통 사용) ──────
 
+interface VariablePreview {
+  name: string;
+  type: "COLOR" | "FLOAT" | "STRING" | "BOOLEAN";
+  value: string;
+  colorHex?: string; // COLOR 타입일 때 swatch용
+}
+
 async function sendCollections(): Promise<void> {
   try {
     const collections =
       await figma.variables.getLocalVariableCollectionsAsync();
+    const allVariables = await figma.variables.getLocalVariablesAsync();
+
+    const localCollections = collections.filter((c) => !c.remote);
+
+    // 변수 ID → 변수 매핑 (alias resolve용)
+    const varById = new Map(allVariables.map((v) => [v.id, v]));
+    // 컬렉션 ID → defaultModeId 매핑
+    const collectionModeMap = new Map(
+      collections.map((c) => [c.id, c.defaultModeId]),
+    );
+
+    const payload = localCollections.map((c) => {
+      const defaultModeId = c.defaultModeId;
+      const vars = allVariables.filter(
+        (v) => v.variableCollectionId === c.id,
+      );
+
+      const variables: VariablePreview[] = [];
+      for (const v of vars) {
+        const raw = v.valuesByMode[defaultModeId];
+        if (raw == null) continue;
+
+        // alias인 경우 resolved 값 추적
+        const resolved = resolveValue(raw, v.resolvedType, varById, collectionModeMap);
+
+        const preview: VariablePreview = {
+          name: v.name,
+          type: v.resolvedType,
+          value: formatPreviewValue(resolved, v.resolvedType),
+        };
+
+        if (
+          v.resolvedType === "COLOR" &&
+          resolved != null &&
+          typeof resolved === "object" &&
+          "r" in resolved
+        ) {
+          const r = Math.round((resolved as RGB).r * 255);
+          const g = Math.round((resolved as RGB).g * 255);
+          const b = Math.round((resolved as RGB).b * 255);
+          preview.colorHex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+        }
+
+        variables.push(preview);
+      }
+
+      return {
+        id: c.id,
+        name: c.name,
+        variableCount: c.variableIds.length,
+        variables,
+      };
+    });
+
     figma.ui.postMessage({
       type: "collections-loaded",
-      payload: {
-        collections: collections
-          .filter((c) => !c.remote) // 로컬 컬렉션만
-          .map((c) => ({
-            id: c.id,
-            name: c.name,
-            variableCount: c.variableIds.length,
-          })),
-      },
+      payload: { collections: payload },
     });
   } catch (e) {
     figma.ui.postMessage({
@@ -77,6 +136,54 @@ async function sendCollections(): Promise<void> {
         e instanceof Error ? e.message : "컬렉션 목록을 불러오지 못했습니다.",
     });
   }
+}
+
+/** alias를 재귀적으로 따라가서 실제 값을 반환 (최대 10단계) */
+function resolveValue(
+  value: VariableValue,
+  resolvedType: VariableResolvedDataType,
+  varById: Map<string, Variable>,
+  collectionModeMap: Map<string, string>,
+  depth = 0,
+): VariableValue {
+  if (depth > 10) return value; // 무한 루프 방지
+  if (
+    value != null &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "VARIABLE_ALIAS"
+  ) {
+    const target = varById.get(value.id);
+    if (!target) return value;
+    const modeId = collectionModeMap.get(target.variableCollectionId);
+    if (!modeId) return value;
+    const targetValue = target.valuesByMode[modeId];
+    if (targetValue == null) return value;
+    return resolveValue(targetValue, resolvedType, varById, collectionModeMap, depth + 1);
+  }
+  return value;
+}
+
+function formatPreviewValue(
+  value: VariableValue,
+  type: VariableResolvedDataType,
+): string {
+  if (
+    type === "COLOR" &&
+    value != null &&
+    typeof value === "object" &&
+    "r" in value
+  ) {
+    const r = Math.round((value as RGB).r * 255);
+    const g = Math.round((value as RGB).g * 255);
+    const b = Math.round((value as RGB).b * 255);
+    const a = "a" in value ? (value as RGBA).a : 1;
+    if (a === 1) {
+      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${Math.round(a * 1000) / 1000})`;
+  }
+  return String(value);
 }
 
 // ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
@@ -109,6 +216,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     try {
       const files = await buildTokensByCollection(
         msg.payload.selectedCollectionIds,
+        msg.payload.excludedGroups ?? {},
       );
       figma.ui.postMessage({
         type: "variables-data",
@@ -176,6 +284,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
 
 async function buildTokensByCollection(
   selectedCollectionIds: string[],
+  excludedGroups: Record<string, string[]>,
 ): Promise<CollectionFilePayload[]> {
   const [collections, allVariables] = await Promise.all([
     figma.variables.getLocalVariableCollectionsAsync(),
@@ -209,7 +318,13 @@ async function buildTokensByCollection(
       (v) => v.variableCollectionId === collectionId,
     );
 
+    const excluded = new Set(excludedGroups[collectionId] ?? []);
+
     for (const variable of collectionVariables) {
+      // 그룹 필터링: 변수 경로의 첫 세그먼트가 제외 목록에 있으면 건너뜀
+      const firstSegment = variable.name.split("/")[0];
+      if (excluded.has(firstSegment)) continue;
+
       const rawValue = variable.valuesByMode[defaultModeId];
       if (rawValue == null) continue;
 
@@ -239,6 +354,9 @@ async function buildTokensByCollection(
       const segments = variable.name.split("/");
       setNestedToken(tokens, segments, token);
     }
+
+    // 그룹 필터링으로 모든 변수가 제외된 빈 컬렉션은 건너뜀
+    if (Object.keys(tokens).length === 0) continue;
 
     result.push({
       collectionName: collection.name,
