@@ -284,7 +284,8 @@
 
       /* ── 대시보드 레이아웃 ──────────────────────────────────── */
       .dashboard {
-        display: flex;
+        display: grid;
+        grid-template-columns: auto 1fr;
         border-top: 1px solid #e0e0e0;
       }
 
@@ -293,8 +294,8 @@
         flex-direction: column;
         border-right: 1px solid #e0e0e0;
         background: #fafafa;
-        flex-shrink: 0;
         min-width: 64px;
+        min-height: 180px;
       }
 
       .type-nav-item {
@@ -321,7 +322,7 @@
       }
 
       .type-nav-label {
-        font-size: 10px;
+        font-size: 12px;
         font-weight: 500;
         color: #666;
         flex: 1;
@@ -354,10 +355,18 @@
         text-decoration: line-through;
       }
 
-      .type-content {
-        flex: 1;
+      .type-content-wrapper {
+        position: relative;
         min-width: 0;
-        max-height: 200px;
+        min-height: 180px;
+      }
+
+      .type-content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         overflow-y: auto;
         padding: 0;
       }
@@ -411,29 +420,29 @@
       .token-table {
         width: 100%;
         border-collapse: collapse;
-        font-size: 11px;
+        font-size: 12px;
       }
 
       .token-table th {
         position: sticky;
         top: 0;
         background: #f0f0f0;
-        padding: 4px 8px;
+        padding: 8px 12px;
         text-align: left;
         font-weight: 500;
         color: #666;
-        font-size: 10px;
+        font-size: 12px;
         border-bottom: 1px solid #e0e0e0;
       }
 
       .token-table td {
-        padding: 4px 8px;
+        padding: 7px 12px;
         border-bottom: 1px solid #f0f0f0;
         color: #333;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 120px;
+        max-width: 160px;
       }
 
       .token-table tr:last-child td {
@@ -442,12 +451,12 @@
 
       .token-table .token-name {
         font-family: "Menlo", "Consolas", monospace;
-        font-size: 10px;
+        font-size: 12px;
       }
 
       .token-table .token-value {
         font-family: "Menlo", "Consolas", monospace;
-        font-size: 10px;
+        font-size: 12px;
       }
 
       /* ── 빈 상태 ────────────────────────────────────────────── */
@@ -1079,6 +1088,8 @@
             const nav = document.createElement("div");
             nav.className = "type-nav";
 
+            const contentWrapper = document.createElement("div");
+            contentWrapper.className = "type-content-wrapper";
             const content = document.createElement("div");
             content.className = "type-content";
 
@@ -1198,8 +1209,9 @@
               content.appendChild(panel);
             });
 
+            contentWrapper.appendChild(content);
             dashboard.appendChild(nav);
-            dashboard.appendChild(content);
+            dashboard.appendChild(contentWrapper);
             body.appendChild(dashboard);
           }
 
