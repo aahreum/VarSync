@@ -1022,13 +1022,16 @@
           chk.type = "checkbox";
           chk.dataset.collectionId = col.id;
           chk.checked = true;
+          let syncing = false;
           chk.addEventListener("click", (e) => e.stopPropagation());
           chk.addEventListener("change", () => {
+            syncing = true;
             const groupChks = card.querySelectorAll("[data-group-name]");
             groupChks.forEach((g) => {
               g.checked = chk.checked;
-              g.dispatchEvent(new Event("change"));
+              g.closest(".type-nav-item").classList.toggle("unchecked", !g.checked);
             });
+            syncing = false;
           });
 
           const arrow = document.createElement("span");
@@ -1097,6 +1100,10 @@
               navChk.addEventListener("click", (e) => e.stopPropagation());
               navChk.addEventListener("change", () => {
                 navItem.classList.toggle("unchecked", !navChk.checked);
+                if (syncing) return;
+                // 하위 그룹 중 하나라도 체크되면 컬렉션도 체크
+                const anyChecked = card.querySelector("[data-group-name]:checked");
+                chk.checked = !!anyChecked;
               });
 
               const navLabel = document.createElement("span");

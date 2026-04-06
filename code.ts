@@ -142,10 +142,12 @@ async function sendCollections(): Promise<void> {
 
 // ── RGB 헬퍼 ──────────────────────────────────────────────
 
+/** 0~255 정수 RGB를 hex 문자열로 변환 */
 function rgbToHex(r: number, g: number, b: number): string {
-  return `#${[r, g, b].map((c) => Math.round(c * 255).toString(16).padStart(2, "0")).join("")}`;
+  return `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** Figma 0~1 범위 RGB(A) → CSS 색상 문자열 */
 function rgbToCss(value: RGB | RGBA): string {
   const r = Math.round(value.r * 255);
   const g = Math.round(value.g * 255);
