@@ -1,0 +1,58 @@
+{
+  "color": {
+    "vermilion": {
+      "500": {
+        "value": "#f9603e",
+        "type": "color"
+      }
+    }
+  },
+  "spacing": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    }
+  },
+  "opacity": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    },
+    "10": {
+      "value": 0.1,
+      "type": "number"
+    }
+  },
+  "haa": {
+    "dd": {
+      "value": "#ffffff",
+      "type": "color"
+    },
+    "Color": {
+      "value": "#ffffff",
+      "type": "color"
+    }
+  },
+  "dd": {
+    "dd": {
+      "value": "#ffffff",
+      "type": "color"
+    },
+    "aa": {
+      "aa": {
+        "value": "#ffffff",
+        "type": "color"
+      },
+      "Color": {
+        "value": "#ffffff",
+        "type": "color"
+      }
+    }
+  },
+  "cc": {
+    "ss": {
+      "value": "#ffffff",
+      "type": "color"
+    }
+  }
+}
