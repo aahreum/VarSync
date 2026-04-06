@@ -79,8 +79,8 @@ type PluginMessage =
 
   // 저장된 암호화 토큰 전송 (없으면 null)
   try {
-    const encrypted =
-      (await figma.clientStorage.getAsync("enc-token")) ?? null;
+    const stored = await figma.clientStorage.getAsync("enc-token");
+    const encrypted = stored !== undefined ? stored : null;
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted } });
   } catch {
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted: null } });
