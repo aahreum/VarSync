@@ -45,15 +45,15 @@ function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
 
 type PluginMessage =
   | { type: "request-variables"; payload: { selectedCollectionIds: string[] } }
+  | { type: "request-collections" }
   | { type: "save-token"; payload: { encrypted: string } }
   | { type: "clear-token" }
   | { type: "resize"; width: number; height: number }
   | { type: "close" };
 
-// ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
+// ── 컬렉션 목록 전송 (시작 시 + 재요청 시 공통 사용) ──────
 
-(async () => {
-  // 컬렉션 목록 전송
+async function sendCollections(): Promise<void> {
   try {
     const collections =
       await figma.variables.getLocalVariableCollectionsAsync();
@@ -76,6 +76,12 @@ type PluginMessage =
         e instanceof Error ? e.message : "컬렉션 목록을 불러오지 못했습니다.",
     });
   }
+}
+
+// ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
+
+(async () => {
+  await sendCollections();
 
   // 저장된 암호화 토큰 전송 (없으면 null)
   try {
@@ -108,6 +114,10 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
             : "변수를 읽는 중 오류가 발생했습니다.",
       });
     }
+  }
+
+  if (msg.type === "request-collections") {
+    await sendCollections();
   }
 
   if (msg.type === "resize") {

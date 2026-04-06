@@ -654,7 +654,16 @@
         document.getElementById("step-dot-2").className =
           n === 2 ? "step-dot active" : "step-dot";
         // 뒤로 가기 시 에러 컨텍스트 보존 — 앞으로 갈 때만 클리어
-        if (n === 2) clearStatus();
+        if (n === 2) {
+          clearStatus();
+          // 컬렉션이 아직 로드되지 않은 경우 plugin main에 재요청
+          if (!collectionsReady) {
+            parent.postMessage(
+              { pluginMessage: { type: "request-collections" } },
+              "*",
+            );
+          }
+        }
       }
 
       // ── 경로 미리보기 ────────────────────────────────────────
@@ -949,10 +958,12 @@
       });
 
       // ── Plugin Main으로부터 메시지 수신 ─────────────────────
+      // event.source 체크를 하지 않음:
+      // Figma 플러그인 샌드박스에서 figma.ui.postMessage()로 전달된 메시지는
+      // event.source가 null일 수 있어 window.parent 비교가 메시지를 차단함.
+      // pluginMessage 키 존재 여부가 Figma 메시지를 식별하기에 충분.
       window.addEventListener("message", async (event) => {
-        if (event.source !== window.parent) return;
-
-        const msg = event.data.pluginMessage;
+        const msg = event.data && event.data.pluginMessage;
         if (!msg) return;
 
         if (msg.type === "collections-loaded") {
