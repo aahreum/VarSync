@@ -8,7 +8,7 @@
 
 ## 2단계: 데이터 가공 로직 구현
 
-- [ ] 피그마 변수 데이터를 JSON 구조로 변환하는 함수 작성
+- [x] 피그마 변수 데이터를 JSON 구조로 변환하는 함수 작성
 - [ ] Primitive와 Semantics 그룹을 필터링하는 로직 구현
 - [ ] 변수 내보내기 시 파일 두 개(`primitive.json`, `semantics.json`)로 분기 처리
 

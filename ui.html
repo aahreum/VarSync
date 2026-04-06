@@ -13,7 +13,32 @@
       color: #1e1e1e;
       background: #fff;
       padding: 16px;
-      width: 300px;
+      width: 100%;
+      min-width: 280px;
+      box-sizing: border-box;
+    }
+
+    #resize-handle {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      width: 16px;
+      height: 16px;
+      cursor: nwse-resize;
+      opacity: 0.35;
+      transition: opacity 0.15s;
+      /* 3×3 점 패턴 */
+      background-image:
+        radial-gradient(circle, #888 1.2px, transparent 1.2px);
+      background-size: 4px 4px;
+      background-position: 2px 2px;
+      background-repeat: repeat;
+      -webkit-mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
+      mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
+    }
+
+    #resize-handle:hover {
+      opacity: 0.7;
     }
 
     h1 {
@@ -147,7 +172,37 @@
 
   <div id="status"></div>
 
+  <!-- 리사이즈 핸들: 드래그로 플러그인 창 크기 조절 -->
+  <div id="resize-handle" title="드래그하여 크기 조절"></div>
+
 <script>
+  // ── 리사이즈 핸들 ───────────────────────────────────────
+  (function () {
+    const handle = document.getElementById('resize-handle');
+    const MIN_W = 280, MIN_H = 280, MAX_W = 800, MAX_H = 800;
+
+    let dragging = false;
+    let startX, startY, startW, startH;
+
+    handle.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startW = document.documentElement.clientWidth;
+      startH = document.documentElement.clientHeight;
+      e.preventDefault(); // 드래그 중 텍스트 선택 방지
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const newW = Math.min(Math.max(startW + (e.clientX - startX), MIN_W), MAX_W);
+      const newH = Math.min(Math.max(startH + (e.clientY - startY), MIN_H), MAX_H);
+      parent.postMessage({ pluginMessage: { type: 'resize', width: newW, height: newH } }, '*');
+    });
+
+    document.addEventListener('mouseup', () => { dragging = false; });
+  })();
+
   // ── 상수 ────────────────────────────────────────────────
   const FILE_PATHS = {
     primitive: 'tokens/primitive.json',
