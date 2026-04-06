@@ -1,44 +1,123 @@
-// 이 플러그인은 사용자에게 숫자를 입력받는 창을 띄우고,
-// 입력된 숫자만큼 화면에 사각형을 생성합니다.
+// VarSync - Figma Variables → GitHub PR Sync Plugin
+// docs/01-figma-variables-api.md 참고
 
-// 이 파일은 플러그인의 메인 코드를 담고 있습니다.
-// 이 파일의 코드는 'figma' 전역 객체를 통해 *Figma 문서*에 접근할 수 있습니다.
-// 브라우저 API는 "ui.html" 안의 <script> 태그 내에서 사용할 수 있으며,
-// 그곳은 전체 브라우저 환경을 제공합니다.
-// (참고: https://www.figma.com/plugin-docs/how-plugins-run)
+figma.showUI(__html__, { width: 332, height: 340 });
 
-// "ui.html"에 정의된 HTML 페이지를 화면에 보여줍니다.
-figma.showUI(__html__);
+// ── 메시지 타입 ───────────────────────────────────────────
 
-// HTML 페이지 내부에서 "parent.postMessage"를 호출하면 이 콜백 함수가 실행됩니다.
-// 이 콜백은 전달된 메시지의 "pluginMessage" 속성을 인자로 받습니다.
-figma.ui.onmessage = (msg: { type: string; count: number }) => {
-  // HTML 페이지에서 보낸 여러 종류의 메시지를 구분하는 한 가지 방법은
-  // 아래와 같이 "type" 속성을 가진 객체를 사용하는 것입니다.
-  if (msg.type === "create-shapes") {
-    // 이 플러그인은 화면에 사각형들을 생성합니다.
-    const numberOfRectangles = msg.count;
+type PluginMessage =
+  // token은 UI에서 보관 — Main으로 전달하지 않음
+  | { type: 'request-variables'; payload: { owner: string; repo: string; baseBranch: string } }
+  | { type: 'close' };
 
-    const nodes: SceneNode[] = [];
-    for (let i = 0; i < numberOfRectangles; i++) {
-      // 사각형 객체를 생성합니다.
-      const rect = figma.createRectangle();
-      // x 좌표를 설정하여 사각형들을 가로로 나열합니다.
-      rect.x = i * 150;
-      // 채우기 색상을 설정합니다 (주황색).
-      rect.fills = [{ type: "SOLID", color: { r: 1, g: 0.5, b: 0 } }];
-      // 현재 페이지에 생성한 사각형을 추가합니다.
-      figma.currentPage.appendChild(rect);
-      // 생성된 노드를 배열에 담습니다.
-      nodes.push(rect);
+// ── UI 메시지 수신 ────────────────────────────────────────
+
+figma.ui.onmessage = async (msg: PluginMessage) => {
+  if (msg.type === 'request-variables') {
+    try {
+      const variables = await readVariables();
+      // 변수 JSON만 전달 — 민감한 token은 UI에서 자체 관리
+      figma.ui.postMessage({
+        type: 'variables-data',
+        payload: {
+          primitiveJson: JSON.stringify(variables.primitive, null, 2),
+          semanticsJson: JSON.stringify(variables.semantics, null, 2),
+        },
+      });
+    } catch (e) {
+      figma.ui.postMessage({
+        type: 'error',
+        message: e instanceof Error ? e.message : '변수를 읽는 중 오류가 발생했습니다.',
+      });
     }
-    // 생성한 사각형들을 선택 상태로 만듭니다.
-    figma.currentPage.selection = nodes;
-    // 화면상의 뷰포트가 생성된 노드들을 비추도록 스크롤 및 줌을 조절합니다.
-    figma.viewport.scrollAndZoomIntoView(nodes);
   }
 
-  // 작업이 끝나면 반드시 플러그인을 종료해야 합니다.
-  // 종료하지 않으면 화면 하단에 취소 버튼이 계속 표시되며 플러그인이 실행 상태로 유지됩니다.
-  figma.closePlugin();
+  if (msg.type === 'close') {
+    figma.closePlugin();
+  }
 };
+
+// ── 변수 읽기 및 JSON 변환 ────────────────────────────────
+
+interface VariableOutput {
+  [group: string]: {
+    [name: string]: {
+      type: string;
+      values: { [mode: string]: unknown };
+    };
+  };
+}
+
+// 분류 대상 컬렉션 그룹 — 확장 시 이 배열에만 추가
+const COLLECTION_GROUPS = ['primitive', 'semantics'] as const;
+type GroupKey = (typeof COLLECTION_GROUPS)[number];
+
+async function readVariables(): Promise<Record<GroupKey, VariableOutput>> {
+  // dynamic-page 환경이므로 반드시 Async API 사용
+  const [collections, allVariables] = await Promise.all([
+    figma.variables.getLocalVariableCollectionsAsync(),
+    figma.variables.getLocalVariablesAsync(),
+  ]);
+
+  // collectionId → { modeId → modeName } 매핑
+  const modeMap: Record<string, Record<string, string>> = {};
+  for (const col of collections) {
+    modeMap[col.id] = Object.fromEntries(col.modes.map((m) => [m.modeId, m.name]));
+  }
+
+  const result: Record<GroupKey, VariableOutput> = { primitive: {}, semantics: {} };
+
+  for (const variable of allVariables) {
+    const lowerName = variable.name.toLowerCase();
+    // "Primitive/Color/Blue/100" 형태에서 prefix(예: "primitive") 추출
+    const groupKey = COLLECTION_GROUPS.find((g) => lowerName.startsWith(`${g}/`));
+    if (!groupKey) continue;
+
+    const target = result[groupKey];
+    const modesForCollection = modeMap[variable.variableCollectionId] ?? {};
+
+    // prefix 1개 세그먼트를 제외하고, 마지막 세그먼트를 name으로, 나머지를 group으로 사용
+    // 예: "Primitive/Color/Blue/100" → group: "Color/Blue", name: "100"
+    const PREFIX_SEGMENT_COUNT = 1;
+    const parts = variable.name.split('/');
+    const name = parts[parts.length - 1];
+    const group = parts.slice(PREFIX_SEGMENT_COUNT, -1).join('/') || 'default';
+
+    if (!target[group]) target[group] = {};
+
+    const values: Record<string, unknown> = {};
+    for (const [modeId, value] of Object.entries(variable.valuesByMode)) {
+      const modeName = modesForCollection[modeId] ?? modeId;
+      values[modeName] = serializeValue(value);
+    }
+
+    target[group][name] = { type: variable.resolvedType, values };
+  }
+
+  return result;
+}
+
+function serializeValue(value: VariableValue): unknown {
+  // VariableAlias: 참조 변수 ID 반환
+  if (typeof value === 'object' && 'type' in value && value.type === 'VARIABLE_ALIAS') {
+    return { $alias: value.id };
+  }
+
+  // RGB/RGBA color: r, g, b 세 채널 모두 존재하는지 확인 후 변환
+  // VariableAlias 처리 후 object 타입에 r/g/b가 있으면 RGB | RGBA
+  if (
+    typeof value === 'object' &&
+    'r' in value && 'g' in value && 'b' in value
+  ) {
+    const r = Math.round((value as RGB).r * 255);
+    const g = Math.round((value as RGB).g * 255);
+    const b = Math.round((value as RGB).b * 255);
+    const a = 'a' in value ? (value as RGBA).a : 1;
+    if (a === 1) {
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+  }
+
+  return value;
+}
