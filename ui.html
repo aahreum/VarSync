@@ -178,6 +178,35 @@
       color: inherit;
       font-weight: 600;
     }
+
+    .field-hint {
+      margin-top: 5px;
+      padding: 6px 8px;
+      background: #f7f8fa;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #777;
+      line-height: 1.6;
+    }
+
+    .field-hint .scope-tag {
+      display: inline-block;
+      font-family: 'Menlo', 'Consolas', monospace;
+      font-size: 10px;
+      background: #e8edf2;
+      color: #3a5068;
+      border-radius: 3px;
+      padding: 0 4px;
+    }
+
+    .field-hint a {
+      color: #18a0fb;
+      text-decoration: none;
+    }
+
+    .field-hint a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -192,6 +221,14 @@
   <div class="field">
     <label for="token">Personal Access Token</label>
     <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx" />
+    <div class="field-hint">
+      Fine-grained PAT 필요 권한:
+      <span class="scope-tag">Contents: Read &amp; Write</span>
+      <span class="scope-tag">Pull requests: Read &amp; Write</span><br />
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">
+        토큰 생성 →
+      </a>
+    </div>
   </div>
 
   <div class="field">

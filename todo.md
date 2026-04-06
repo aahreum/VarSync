@@ -15,13 +15,13 @@
 
 ## 3단계: GitHub 연동 로직 (핵심)
 
-- [ ] 사용자가 입력한 기준 브랜치(Base)에서 새 브랜치 생성 로직 구현
-- [ ] 변수 JSON 데이터를 파일로 커밋(Commit)
-- [ ] GitHub Pull Request 생성 API 연동
+- [x] 사용자가 입력한 기준 브랜치(Base)에서 새 브랜치 생성 로직 구현
+- [x] 변수 JSON 데이터를 파일로 커밋(Commit)
+- [x] GitHub Pull Request 생성 API 연동
 
 ## 4단계: UI/UX 고도화
 
-- [ ] 성공/실패 토스트 알림 메시지 추가
+- [x] 성공/실패 토스트 알림 메시지 추가
 - [ ] GitHub Token을 매번 입력하지 않도록 로컬 저장 (`figma.clientStorage`)
 - [ ] 진행 상황 표시 (로딩 스피너)
 
@@ -29,7 +29,7 @@
 
 - [x] 에러 경로에서 `pendingSyncParams`(토큰 포함) 즉시 클리어 — `error` 메시지 수신 시 null 처리 누락 버그 수정
 - [ ] `figma.clientStorage` 토큰 저장 시 평문 저장 금지 — 저장 전 위험 안내 모달 또는 obfuscation 처리 필요 (`clientStorage`는 암호화 없이 디스크에 저장됨)
-- [ ] Fine-grained PAT 최소 권한 안내 UI 추가 — `Contents: Read & Write`, `Pull requests: Read & Write` 두 가지만 필요함을 명시
+- [x] Fine-grained PAT 최소 권한 안내 UI 추가 — `Contents: Read & Write`, `Pull requests: Read & Write` 두 가지만 필요함을 명시
 
 ## 5단계: 테스트 및 배포
 
