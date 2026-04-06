@@ -197,6 +197,15 @@ function formatPreviewValue(
   if (typeof value === "number") {
     return String(parseFloat(value.toPrecision(6)));
   }
+  // 미해결 alias 방어
+  if (
+    value != null &&
+    typeof value === "object" &&
+    "type" in value &&
+    value.type === "VARIABLE_ALIAS"
+  ) {
+    return "(unresolved alias)";
+  }
   return String(value);
 }
 
@@ -411,14 +420,7 @@ function toTokenValue(
     "g" in value &&
     "b" in value
   ) {
-    const r = Math.round((value as RGB).r * 255);
-    const g = Math.round((value as RGB).g * 255);
-    const b = Math.round((value as RGB).b * 255);
-    const a = Math.round(("a" in value ? (value as RGBA).a : 1) * 1000) / 1000;
-    if (a === 1) {
-      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    }
-    return `rgba(${r}, ${g}, ${b}, ${a})`;
+    return rgbToCss(value as RGBA);
   }
 
   // FLOAT: 부동소수점 오차 보정 (Figma 32비트 float → 깔끔한 값)
