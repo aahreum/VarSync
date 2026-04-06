@@ -82,7 +82,8 @@
 
     .checkbox-row {
       display: flex;
-      gap: 16px;
+      flex-direction: column;
+      gap: 6px;
       margin-top: 4px;
     }
 
@@ -96,12 +97,23 @@
       user-select: none;
     }
 
+    .checkbox-label .count {
+      font-size: 11px;
+      color: #888;
+    }
+
     input[type="checkbox"] {
       width: 14px;
       height: 14px;
       accent-color: #18a0fb;
       cursor: pointer;
       flex-shrink: 0;
+    }
+
+    #collections-loading {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
     }
 
     .divider {
@@ -188,16 +200,14 @@
   </div>
 
   <div class="field">
-    <label>내보낼 그룹</label>
-    <div class="checkbox-row">
-      <label class="checkbox-label">
-        <input type="checkbox" id="chk-primitive" checked />
-        Primitive
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="chk-semantics" checked />
-        Semantics
-      </label>
+    <label for="folder-path">저장 폴더 경로</label>
+    <input id="folder-path" type="text" placeholder="tokens" value="tokens" />
+  </div>
+
+  <div class="field">
+    <label>내보낼 컬렉션</label>
+    <div id="collections-list" class="checkbox-row">
+      <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
     </div>
   </div>
 
@@ -205,7 +215,7 @@
 
   <div class="btn-row">
     <button id="btn-test">연결 테스트</button>
-    <button id="btn-sync">Sync to GitHub</button>
+    <button id="btn-sync" disabled>Sync to GitHub</button>
   </div>
 
   <div id="status"></div>
@@ -220,7 +230,7 @@
     const MIN_W = 280, MIN_H = 280, MAX_W = 800, MAX_H = 800;
 
     let dragging = false;
-    let startX, startY, startW, startH;
+    let startX = 0, startY = 0, startW = 0, startH = 0;
 
     handle.addEventListener('mousedown', (e) => {
       dragging = true;
@@ -242,22 +252,15 @@
   })();
 
   // ── 상수 ────────────────────────────────────────────────
-  const FILE_PATHS = {
-    primitive: 'tokens/primitive.json',
-    semantics: 'tokens/semantics.json',
-  };
-  const COMMIT_MESSAGES = {
-    primitive: 'chore: sync figma primitive variables',
-    semantics: 'chore: sync figma semantics variables',
-  };
   const PR_TITLE = 'chore: sync figma variables';
   const PR_BODY  = 'Figma Variables Sync 플러그인에 의해 자동 생성된 PR입니다.';
   const SYNC_TIMEOUT_MS = 15000;
 
-  // ── Sync 요청 시 UI에서 보관하는 파라미터 ─────────────────
+  // ── 상태 ────────────────────────────────────────────────
   // token은 plugin main으로 전달하지 않고 여기서 관리
   let pendingSyncParams = null;
   let syncTimeoutId = null;
+  let collectionsReady = false;
 
   // ── 유틸 ────────────────────────────────────────────────
   function parseGitHubUrl(input) {
@@ -265,16 +268,41 @@
     return match ? { owner: match[1], repo: match[2] } : null;
   }
 
-  /** 입력 폼 값을 한 번에 읽어오는 헬퍼 */
+  /** "My Collection Name" → "my-collection-name". 변환 결과가 빈 문자열이면 "untitled" 반환 */
+  function toKebabCase(str) {
+    const result = str
+      .trim()
+      .toLowerCase()
+      .replace(/[\s_]+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    return result || 'untitled';
+  }
+
+  /** 선택된 컬렉션 ID 목록을 반환 */
   function getFormValues() {
-    const groups = [];
-    if (document.getElementById('chk-primitive').checked) groups.push('primitive');
-    if (document.getElementById('chk-semantics').checked) groups.push('semantics');
+    const selectedCollectionIds = Array.from(
+      document.querySelectorAll('[data-collection-id]:checked')
+    ).map((el) => el.dataset.collectionId);
+
+    // 폴더 경로: 경로 순회(..) 차단, 슬래시 정규화, 빈 경우 기본값 적용
+    const folderPath = document.getElementById('folder-path').value
+      .trim()
+      .replace(/\\/g, '/')        // 백슬래시 → 슬래시
+      .replace(/\/+/g, '/')       // 연속 슬래시 → 단일 슬래시
+      .replace(/^\/+|\/+$/g, '')  // 앞뒤 슬래시 제거
+      .split('/')
+      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..') // 빈 세그먼트·경로 순회 차단
+      .join('/')
+      || 'tokens';
+
     return {
       repoInput: document.getElementById('repo').value,
       token: document.getElementById('token').value.trim(),
       baseBranch: document.getElementById('branch').value.trim() || 'main',
-      groups,
+      folderPath,
+      selectedCollectionIds,
     };
   }
 
@@ -306,7 +334,8 @@
 
   function setLoading(isLoading) {
     document.getElementById('btn-test').disabled = isLoading;
-    document.getElementById('btn-sync').disabled = isLoading;
+    // Sync 버튼은 컬렉션이 로드된 경우에만 활성화
+    document.getElementById('btn-sync').disabled = isLoading || !collectionsReady;
   }
 
   function githubHeaders(token) {
@@ -317,14 +346,52 @@
     };
   }
 
-  /** UTF-8 문자열을 Base64로 안전하게 인코딩 (TextEncoder 사용, unescape deprecated 대체) */
+  /** UTF-8 문자열을 Base64로 안전하게 인코딩 (32KB 청크 단위 처리) */
   function toBase64(str) {
     const bytes = new TextEncoder().encode(str);
+    const CHUNK = 32768;
     let binary = '';
-    for (const byte of bytes) {
-      binary += String.fromCharCode(byte);
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
     }
     return btoa(binary);
+  }
+
+  // ── 컬렉션 목록 렌더링 ──────────────────────────────────
+  function renderCollections(collections) {
+    const list = document.getElementById('collections-list');
+    list.textContent = '';
+
+    if (collections.length === 0) {
+      const msg = document.createElement('span');
+      msg.style.cssText = 'font-size:11px;color:#888;';
+      msg.textContent = '컬렉션이 없습니다.';
+      list.appendChild(msg);
+      return;
+    }
+
+    collections.forEach((col) => {
+      const lbl = document.createElement('label');
+      lbl.className = 'checkbox-label';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.dataset.collectionId = col.id;
+      chk.checked = true; // 기본 전체 선택
+
+      const name = document.createTextNode(col.name);
+      const count = document.createElement('span');
+      count.className = 'count';
+      count.textContent = `(${col.variableCount})`;
+
+      lbl.appendChild(chk);
+      lbl.appendChild(name);
+      lbl.appendChild(count);
+      list.appendChild(lbl);
+    });
+
+    collectionsReady = true;
+    document.getElementById('btn-sync').disabled = false;
   }
 
   // ── GitHub API 헬퍼 ────────────────────────────────────
@@ -413,22 +480,23 @@
 
   // ── Sync 실행 ───────────────────────────────────────────
   document.getElementById('btn-sync').addEventListener('click', () => {
-    const { repoInput, token, baseBranch, groups } = getFormValues();
+    const { repoInput, token, baseBranch, folderPath, selectedCollectionIds } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
-    if (!parsed)         return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
-    if (!token)          return setStatus('error', ['Personal Access Token을 입력해주세요.']);
-    if (groups.length === 0) return setStatus('error', ['Primitive 또는 Semantics 중 하나 이상을 선택해주세요.']);
+    if (!parsed)                    return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
+    if (!token)                     return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+    if (selectedCollectionIds.length === 0) return setStatus('error', ['하나 이상의 컬렉션을 선택해주세요.']);
 
     // token은 UI에서 자체 보관 — plugin main으로 전달하지 않음
-    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, groups };
+    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, folderPath };
 
     setLoading(true);
-    setStatus('info', [`Figma 변수를 읽는 중... (${groups.join(', ')})`]);
+    setStatus('info', [`Figma 변수를 읽는 중... (${selectedCollectionIds.length}개 컬렉션)`]);
 
     // 응답이 없을 경우 자동 타임아웃 처리
     syncTimeoutId = setTimeout(() => {
       pendingSyncParams = null;
+      syncTimeoutId = null;
       setLoading(false);
       setStatus('error', ['응답 시간 초과. 다시 시도해주세요.']);
     }, SYNC_TIMEOUT_MS);
@@ -436,7 +504,7 @@
     parent.postMessage({
       pluginMessage: {
         type: 'request-variables',
-        payload: { owner: parsed.owner, repo: parsed.repo, baseBranch, groups },
+        payload: { selectedCollectionIds },
       }
     }, '*');
   });
@@ -444,15 +512,25 @@
   // ── Plugin Main으로부터 메시지 수신 ─────────────────────
   // addEventListener 사용 — onmessage 직접 할당은 재할당 시 덮어써지는 위험이 있음
   window.addEventListener('message', async (event) => {
+    // Figma plugin iframe: parent만 신뢰
+    if (event.source !== window.parent) return;
+
     const msg = event.data.pluginMessage;
     if (!msg) return;
 
+    // collections-loaded는 타임아웃과 무관하게 처리
+    if (msg.type === 'collections-loaded') {
+      renderCollections(msg.payload.collections);
+      return;
+    }
+
     clearTimeout(syncTimeoutId);
+    syncTimeoutId = null;
 
     if (msg.type === 'variables-data') {
       if (!pendingSyncParams) return;
-      const { owner, repo, token, baseBranch, groups } = pendingSyncParams;
-      const { primitiveJson, semanticsJson } = msg.payload;
+      const { owner, repo, token, baseBranch, folderPath } = pendingSyncParams;
+      const files = msg.payload.files; // CollectionFilePayload[]
       pendingSyncParams = null;
 
       setStatus('info', ['브랜치 생성 중...']);
@@ -461,20 +539,45 @@
         const baseSha = await getBranchSha(owner, repo, baseBranch, token);
 
         // UTC 기준 타임스탬프 브랜치명 생성 (예: figma-sync/20240406-1430)
-        const timestamp = new Date().toISOString().slice(0, 16).replace(/[-T:]/g, '').replace(/(\d{8})(\d{4})/, '$1-$2');
+        const timestamp = new Date().toISOString()
+          .slice(0, 16).replace('T', '').replace(/:/g, '').replace(/-/g, '')
+          .replace(/(\d{8})(\d{4})/, '$1-$2');
         const newBranch = `figma-sync/${timestamp}`;
 
         await createBranch(owner, repo, newBranch, baseSha, token);
         setStatus('info', ['파일 커밋 중...']);
 
-        // 선택된 그룹의 파일만 커밋
-        if (groups.includes('primitive') && primitiveJson) {
-          const primSha = await getFileSha(owner, repo, FILE_PATHS.primitive, baseBranch, token);
-          await putFile(owner, repo, FILE_PATHS.primitive, primitiveJson, COMMIT_MESSAGES.primitive, newBranch, token, primSha);
+        // 모든 파일의 기존 SHA를 병렬 조회
+        // 각 세그먼트를 URL 인코딩하여 공백·특수문자로 인한 잘못된 API URL 방지
+        const encodeRepoPath = (p) => p.split('/').map(encodeURIComponent).join('/');
+        const filePaths = files.map(
+          (f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`
+        );
+        const encodedFilePaths = filePaths.map(encodeRepoPath);
+
+        // 컬렉션명이 kebab-case 변환 후 충돌하는 경우 조기 오류 처리
+        const uniquePaths = new Set(filePaths);
+        if (uniquePaths.size !== filePaths.length) {
+          const seen = new Set();
+          for (const p of filePaths) {
+            if (seen.has(p)) throw new Error(`파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`);
+            seen.add(p);
+          }
         }
-        if (groups.includes('semantics') && semanticsJson) {
-          const semSha = await getFileSha(owner, repo, FILE_PATHS.semantics, baseBranch, token);
-          await putFile(owner, repo, FILE_PATHS.semantics, semanticsJson, COMMIT_MESSAGES.semantics, newBranch, token, semSha);
+
+        const existingShas = await Promise.all(
+          encodedFilePaths.map((path) => getFileSha(owner, repo, path, baseBranch, token))
+        );
+
+        // 각 컬렉션 파일을 순차 커밋
+        for (let i = 0; i < files.length; i++) {
+          const { collectionName, tokensJson } = files[i];
+          const existingSha = existingShas[i];
+          await putFile(
+            owner, repo, encodedFilePaths[i], tokensJson,
+            `chore: sync "${collectionName}" tokens from Figma`,
+            newBranch, token, existingSha
+          );
         }
 
         setStatus('info', ['PR 생성 중...']);

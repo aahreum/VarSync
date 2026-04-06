@@ -11,6 +11,7 @@
 - [x] 피그마 변수 데이터를 JSON 구조로 변환하는 함수 작성
 - [x] Primitive와 Semantics 그룹을 필터링하는 로직 구현
 - [x] 변수 내보내기 시 파일 두 개(`primitive.json`, `semantics.json`)로 분기 처리
+- [x] 컬렉션 기반 내보내기로 전환 (`variableCollectionId` 기준, `tokens/{kebab-name}.json` 다중 파일)
 
 ## 3단계: GitHub 연동 로직 (핵심)
 
