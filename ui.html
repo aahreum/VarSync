@@ -18,6 +18,7 @@
       box-sizing: border-box;
     }
 
+    /* ── 리사이즈 핸들 ─────────────────────────────────────── */
     #resize-handle {
       position: fixed;
       bottom: 0;
@@ -27,30 +28,61 @@
       cursor: nwse-resize;
       opacity: 0.35;
       transition: opacity 0.15s;
-      /* 3×3 점 패턴 */
-      background-image:
-        radial-gradient(circle, #888 1.2px, transparent 1.2px);
+      background-image: radial-gradient(circle, #888 1.2px, transparent 1.2px);
       background-size: 4px 4px;
       background-position: 2px 2px;
       background-repeat: repeat;
       -webkit-mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
       mask-image: linear-gradient(135deg, transparent 40%, #000 100%);
     }
+    #resize-handle:hover { opacity: 0.7; }
 
-    #resize-handle:hover {
-      opacity: 0.7;
+    /* ── 헤더 ──────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
     }
 
     h1 {
       font-size: 14px;
       font-weight: 600;
-      margin-bottom: 16px;
       color: #1e1e1e;
     }
 
-    .field {
-      margin-bottom: 12px;
+    /* ── 스텝 인디케이터 ────────────────────────────────────── */
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
+
+    .step-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 10px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #e8e8e8;
+      color: #888;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .step-dot.active { background: #18a0fb; color: #fff; }
+    .step-dot.done   { background: #1a7f3c; color: #fff; }
+
+    .step-line {
+      width: 16px;
+      height: 1px;
+      background: #e0e0e0;
+    }
+
+    /* ── 폼 필드 ────────────────────────────────────────────── */
+    .field { margin-bottom: 12px; }
 
     label {
       display: block;
@@ -60,7 +92,8 @@
       margin-bottom: 4px;
     }
 
-    input {
+    input[type="text"],
+    input[type="password"] {
       width: 100%;
       height: 32px;
       padding: 0 8px;
@@ -72,113 +105,12 @@
       transition: border-color 0.15s;
     }
 
-    input:focus {
-      border-color: #18a0fb;
-    }
+    input[type="text"]:focus,
+    input[type="password"]:focus { border-color: #18a0fb; }
 
-    input::placeholder {
-      color: #b0b0b0;
-    }
+    input::placeholder { color: #b0b0b0; }
 
-    .checkbox-row {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 4px;
-    }
-
-    .checkbox-label {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 12px;
-      color: #1e1e1e;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .checkbox-label .count {
-      font-size: 11px;
-      color: #888;
-    }
-
-    input[type="checkbox"] {
-      width: 14px;
-      height: 14px;
-      accent-color: #18a0fb;
-      cursor: pointer;
-      flex-shrink: 0;
-    }
-
-    #collections-loading {
-      font-size: 11px;
-      color: #888;
-      margin-top: 4px;
-    }
-
-    .divider {
-      height: 1px;
-      background: #f0f0f0;
-      margin: 16px 0;
-    }
-
-    .btn-row {
-      display: flex;
-      gap: 8px;
-    }
-
-    button {
-      flex: 1;
-      height: 32px;
-      border: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s, opacity 0.15s;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    #btn-test {
-      background: #f5f5f5;
-      color: #1e1e1e;
-    }
-
-    #btn-test:hover:not(:disabled) {
-      background: #e8e8e8;
-    }
-
-    #btn-sync {
-      background: #18a0fb;
-      color: #fff;
-    }
-
-    #btn-sync:hover:not(:disabled) {
-      background: #0d8de0;
-    }
-
-    #status {
-      margin-top: 12px;
-      padding: 8px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      line-height: 1.5;
-      display: none;
-    }
-
-    #status.info    { background: #e8f4fd; color: #0d5a8e; display: block; }
-    #status.success { background: #e6f9ed; color: #1a7f3c; display: block; }
-    #status.error   { background: #fdecea; color: #c0392b; display: block; }
-
-    #status a {
-      color: inherit;
-      font-weight: 600;
-    }
-
+    /* ── 필드 힌트 ──────────────────────────────────────────── */
     .field-hint {
       margin-top: 5px;
       padding: 6px 8px;
@@ -199,65 +131,178 @@
       padding: 0 4px;
     }
 
-    .field-hint a {
-      color: #18a0fb;
-      text-decoration: none;
+    .field-hint a { color: #18a0fb; text-decoration: none; }
+    .field-hint a:hover { text-decoration: underline; }
+
+    /* ── 경로 미리보기 ──────────────────────────────────────── */
+    .path-preview {
+      margin-top: 5px;
+      font-size: 10px;
+      color: #888;
     }
 
-    .field-hint a:hover {
-      text-decoration: underline;
+    .path-preview code {
+      font-family: 'Menlo', 'Consolas', monospace;
+      background: #f0f0f0;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #444;
     }
+
+    /* ── 구분선 ─────────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: #f0f0f0;
+      margin: 14px 0;
+    }
+
+    /* ── 컬렉션 체크박스 ────────────────────────────────────── */
+    .checkbox-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      color: #1e1e1e;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label .count { font-size: 11px; color: #888; }
+
+    input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #18a0fb;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    #collections-loading { font-size: 11px; color: #888; margin-top: 4px; }
+
+    /* ── 버튼 ───────────────────────────────────────────────── */
+    .btn-row { display: flex; gap: 8px; }
+
+    button {
+      flex: 1;
+      height: 32px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-secondary { background: #f5f5f5; color: #1e1e1e; }
+    .btn-secondary:hover:not(:disabled) { background: #e8e8e8; }
+
+    .btn-primary { background: #18a0fb; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #0d8de0; }
+
+    /* ── 상태 메시지 ────────────────────────────────────────── */
+    #status {
+      margin-top: 12px;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+      display: none;
+    }
+
+    #status.info    { background: #e8f4fd; color: #0d5a8e; display: block; }
+    #status.success { background: #e6f9ed; color: #1a7f3c; display: block; }
+    #status.error   { background: #fdecea; color: #c0392b; display: block; }
+    #status a { color: inherit; font-weight: 600; }
+
+    /* ── 스텝 패널 ──────────────────────────────────────────── */
+    .step-panel[hidden] { display: none; }
   </style>
 </head>
 <body>
 
-  <h1>VarSync</h1>
-
-  <div class="field">
-    <label for="repo">GitHub Repository</label>
-    <input id="repo" type="text" placeholder="owner/repo 또는 GitHub URL" />
-  </div>
-
-  <div class="field">
-    <label for="token">Personal Access Token</label>
-    <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx" />
-    <div class="field-hint">
-      Fine-grained PAT 필요 권한:
-      <span class="scope-tag">Contents: Read &amp; Write</span>
-      <span class="scope-tag">Pull requests: Read &amp; Write</span><br />
-      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">
-        토큰 생성 →
-      </a>
+  <div class="header">
+    <h1>VarSync</h1>
+    <div class="step-indicator">
+      <div class="step-dot active" id="step-dot-1">1</div>
+      <div class="step-line"></div>
+      <div class="step-dot" id="step-dot-2">2</div>
     </div>
   </div>
 
-  <div class="field">
-    <label for="branch">Base Branch</label>
-    <input id="branch" type="text" placeholder="main" value="main" />
-  </div>
+  <!-- ── Step 1: GitHub 설정 ──────────────────────────────── -->
+  <div class="step-panel" id="step-1">
 
-  <div class="field">
-    <label for="folder-path">저장 폴더 경로</label>
-    <input id="folder-path" type="text" placeholder="tokens" value="tokens" />
-  </div>
-
-  <div class="field">
-    <label>내보낼 컬렉션</label>
-    <div id="collections-list" class="checkbox-row">
-      <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
+    <div class="field">
+      <label for="repo">GitHub Repository</label>
+      <input id="repo" type="text" placeholder="owner/repo 또는 GitHub URL" />
     </div>
+
+    <div class="field">
+      <label for="token">Personal Access Token</label>
+      <input id="token" type="password" placeholder="ghp_xxxxxxxxxxxx" />
+      <div class="field-hint">
+        Fine-grained PAT 필요 권한:
+        <span class="scope-tag">Contents: Read &amp; Write</span>
+        <span class="scope-tag">Pull requests: Read &amp; Write</span><br />
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">토큰 생성 →</a>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="base-branch">Base Branch</label>
+      <input id="base-branch" type="text" placeholder="main" value="main" />
+    </div>
+
+    <div class="field">
+      <label for="new-branch">생성할 브랜치명</label>
+      <input id="new-branch" type="text" placeholder="figma-sync/YYYYMMDD-HHmm (비우면 자동 생성)" />
+    </div>
+
+    <div class="field">
+      <label for="folder-path">저장 폴더 경로</label>
+      <input id="folder-path" type="text" placeholder="tokens" value="tokens" />
+      <div class="path-preview">저장 위치: <code id="path-preview-text">./tokens</code></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="btn-test">연결 테스트</button>
+      <button class="btn-primary" id="btn-next">다음 →</button>
+    </div>
+
   </div>
 
-  <div class="divider"></div>
+  <!-- ── Step 2: 컬렉션 선택 ──────────────────────────────── -->
+  <div class="step-panel" id="step-2" hidden>
 
-  <div class="btn-row">
-    <button id="btn-test">연결 테스트</button>
-    <button id="btn-sync" disabled>Sync to GitHub</button>
+    <div class="field">
+      <label>내보낼 컬렉션</label>
+      <div id="collections-list" class="checkbox-row">
+        <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="btn-back">← 이전</button>
+      <button class="btn-primary" id="btn-sync" disabled>Sync to GitHub</button>
+    </div>
+
   </div>
 
   <div id="status"></div>
 
-  <!-- 리사이즈 핸들: 드래그로 플러그인 창 크기 조절 -->
   <div id="resize-handle" title="드래그하여 크기 조절"></div>
 
 <script>
@@ -265,26 +310,22 @@
   (function () {
     const handle = document.getElementById('resize-handle');
     const MIN_W = 280, MIN_H = 280, MAX_W = 800, MAX_H = 800;
-
     let dragging = false;
     let startX = 0, startY = 0, startW = 0, startH = 0;
 
     handle.addEventListener('mousedown', (e) => {
       dragging = true;
-      startX = e.clientX;
-      startY = e.clientY;
+      startX = e.clientX; startY = e.clientY;
       startW = document.documentElement.clientWidth;
       startH = document.documentElement.clientHeight;
-      e.preventDefault(); // 드래그 중 텍스트 선택 방지
+      e.preventDefault();
     });
-
     document.addEventListener('mousemove', (e) => {
       if (!dragging) return;
       const newW = Math.min(Math.max(startW + (e.clientX - startX), MIN_W), MAX_W);
       const newH = Math.min(Math.max(startH + (e.clientY - startY), MIN_H), MAX_H);
       parent.postMessage({ pluginMessage: { type: 'resize', width: newW, height: newH } }, '*');
     });
-
     document.addEventListener('mouseup', () => { dragging = false; });
   })();
 
@@ -294,7 +335,6 @@
   const SYNC_TIMEOUT_MS = 15000;
 
   // ── 상태 ────────────────────────────────────────────────
-  // token은 plugin main으로 전달하지 않고 여기서 관리
   let pendingSyncParams = null;
   let syncTimeoutId = null;
   let collectionsReady = false;
@@ -305,11 +345,9 @@
     return match ? { owner: match[1], repo: match[2] } : null;
   }
 
-  /** "My Collection Name" → "my-collection-name". 변환 결과가 빈 문자열이면 "untitled" 반환 */
+  /** "My Collection Name" → "my-collection-name". 빈 문자열이면 "untitled" 반환 */
   function toKebabCase(str) {
-    const result = str
-      .trim()
-      .toLowerCase()
+    const result = str.trim().toLowerCase()
       .replace(/[\s_]+/g, '-')
       .replace(/[^a-z0-9-]/g, '')
       .replace(/-+/g, '-')
@@ -317,48 +355,47 @@
     return result || 'untitled';
   }
 
-  /** 선택된 컬렉션 ID 목록을 반환 */
+  /**
+   * 폴더 경로 정규화: 경로 순회(..) 차단, 슬래시 정규화
+   * 빈 경우 기본값 'tokens' 반환
+   */
+  function sanitizeFolderPath(raw) {
+    return raw
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/\/+/g, '/')
+      .replace(/^\/+|\/+$/g, '')
+      .split('/')
+      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
+      .join('/')
+      || 'tokens';
+  }
+
+  /** 폼에서 값 읽기 */
   function getFormValues() {
     const selectedCollectionIds = Array.from(
       document.querySelectorAll('[data-collection-id]:checked')
     ).map((el) => el.dataset.collectionId);
 
-    // 폴더 경로: 경로 순회(..) 차단, 슬래시 정규화, 빈 경우 기본값 적용
-    const folderPath = document.getElementById('folder-path').value
-      .trim()
-      .replace(/\\/g, '/')        // 백슬래시 → 슬래시
-      .replace(/\/+/g, '/')       // 연속 슬래시 → 단일 슬래시
-      .replace(/^\/+|\/+$/g, '')  // 앞뒤 슬래시 제거
-      .split('/')
-      .filter((seg) => seg !== '' && seg !== '.' && seg !== '..') // 빈 세그먼트·경로 순회 차단
-      .join('/')
-      || 'tokens';
-
     return {
-      repoInput: document.getElementById('repo').value,
-      token: document.getElementById('token').value.trim(),
-      baseBranch: document.getElementById('branch').value.trim() || 'main',
-      folderPath,
+      repoInput:      document.getElementById('repo').value,
+      token:          document.getElementById('token').value.trim(),
+      baseBranch:     document.getElementById('base-branch').value.trim() || 'main',
+      newBranchInput: document.getElementById('new-branch').value.trim(),
+      folderPath:     sanitizeFolderPath(document.getElementById('folder-path').value),
       selectedCollectionIds,
     };
   }
 
-  /**
-   * 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지)
-   * @param {'info'|'success'|'error'} type
-   * @param {string[]} lines  - 표시할 텍스트 줄 배열
-   * @param {{ url: string, label: string } | null} link - 선택적 링크
-   */
+  /** 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지) */
   function setStatus(type, lines, link = null) {
     const el = document.getElementById('status');
     el.className = type;
     el.textContent = '';
-
     lines.forEach((line, i) => {
       if (i > 0) el.appendChild(document.createElement('br'));
       el.appendChild(document.createTextNode(line));
     });
-
     if (link) {
       el.appendChild(document.createElement('br'));
       const a = document.createElement('a');
@@ -369,9 +406,17 @@
     }
   }
 
+  function clearStatus() {
+    const el = document.getElementById('status');
+    el.className = '';
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+
   function setLoading(isLoading) {
     document.getElementById('btn-test').disabled = isLoading;
-    // Sync 버튼은 컬렉션이 로드된 경우에만 활성화
+    document.getElementById('btn-next').disabled = isLoading;
+    document.getElementById('btn-back').disabled = isLoading;
     document.getElementById('btn-sync').disabled = isLoading || !collectionsReady;
   }
 
@@ -394,6 +439,25 @@
     return btoa(binary);
   }
 
+  // ── 스텝 네비게이션 ──────────────────────────────────────
+  function showStep(n) {
+    document.getElementById('step-1').hidden = (n !== 1);
+    document.getElementById('step-2').hidden = (n !== 2);
+    // step 1로 돌아오면 active로 복원 (done 유지 X)
+    document.getElementById('step-dot-1').className = n === 1 ? 'step-dot active' : 'step-dot done';
+    document.getElementById('step-dot-2').className = n === 2 ? 'step-dot active' : 'step-dot';
+    // 뒤로 가기 시 에러 컨텍스트 보존 — 앞으로 갈 때만 클리어
+    if (n === 2) clearStatus();
+  }
+
+  // ── 경로 미리보기 ────────────────────────────────────────
+  function updatePathPreview() {
+    const sanitized = sanitizeFolderPath(document.getElementById('folder-path').value);
+    document.getElementById('path-preview-text').textContent = `./${sanitized}`;
+  }
+
+  document.getElementById('folder-path').addEventListener('input', updatePathPreview);
+
   // ── 컬렉션 목록 렌더링 ──────────────────────────────────
   function renderCollections(collections) {
     const list = document.getElementById('collections-list');
@@ -414,7 +478,7 @@
       const chk = document.createElement('input');
       chk.type = 'checkbox';
       chk.dataset.collectionId = col.id;
-      chk.checked = true; // 기본 전체 선택
+      chk.checked = true;
 
       const name = document.createTextNode(col.name);
       const count = document.createElement('span');
@@ -437,6 +501,18 @@
       `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
       { headers: githubHeaders(token) }
     );
+    if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
+    const data = await res.json();
+    return data.object.sha;
+  }
+
+  /** 브랜치가 존재하면 SHA 반환, 없으면 null */
+  async function getBranchShaMaybe(owner, repo, branch, token) {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${branch}`,
+      { headers: githubHeaders(token) }
+    );
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error(`브랜치 조회 실패 (${res.status})`);
     const data = await res.json();
     return data.object.sha;
@@ -468,7 +544,6 @@
   async function putFile(owner, repo, path, content, message, branch, token, existingSha) {
     const body = { message, content: toBase64(content), branch };
     if (existingSha) body.sha = existingSha;
-
     const res = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/${path}`,
       { method: 'PUT', headers: githubHeaders(token), body: JSON.stringify(body) }
@@ -490,17 +565,15 @@
     return data.html_url;
   }
 
-  // ── 연결 테스트 ─────────────────────────────────────────
+  // ── Step 1 버튼 ────────────────────────────────────────
   document.getElementById('btn-test').addEventListener('click', async () => {
     const { repoInput, token, baseBranch } = getFormValues();
-
     const parsed = parseGitHubUrl(repoInput);
     if (!parsed) return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
     if (!token)  return setStatus('error', ['Personal Access Token을 입력해주세요.']);
 
     setLoading(true);
     setStatus('info', ['연결 테스트 중...']);
-
     try {
       const sha = await getBranchSha(parsed.owner, parsed.repo, baseBranch, token);
       setStatus('success', [
@@ -515,22 +588,45 @@
     }
   });
 
-  // ── Sync 실행 ───────────────────────────────────────────
+  // GitHub 브랜치명 규칙: 공백·제어문자·특수기호 불가
+  const INVALID_BRANCH_RE = /[\s~^:?*\[\\]|\.\.|\/$|^\.|\.lock$/;
+
+  document.getElementById('btn-next').addEventListener('click', () => {
+    const { repoInput, token, baseBranch, newBranchInput } = getFormValues();
+    const parsed = parseGitHubUrl(repoInput);
+    if (!parsed)     return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
+    if (!token)      return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+    if (!baseBranch) return setStatus('error', ['Base Branch를 입력해주세요.']);
+    if (newBranchInput && INVALID_BRANCH_RE.test(newBranchInput)) {
+      return setStatus('error', ['브랜치 이름에 사용할 수 없는 문자가 포함되어 있습니다. (공백, ~, ^, :, ?, * 등 불가)']);
+    }
+    showStep(2);
+  });
+
+  // ── Step 2 버튼 ────────────────────────────────────────
+  document.getElementById('btn-back').addEventListener('click', () => {
+    showStep(1);
+  });
+
   document.getElementById('btn-sync').addEventListener('click', () => {
-    const { repoInput, token, baseBranch, folderPath, selectedCollectionIds } = getFormValues();
+    const { repoInput, token, baseBranch, newBranchInput, folderPath, selectedCollectionIds } = getFormValues();
 
     const parsed = parseGitHubUrl(repoInput);
-    if (!parsed)                    return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']);
-    if (!token)                     return setStatus('error', ['Personal Access Token을 입력해주세요.']);
+    if (!parsed) { showStep(1); return setStatus('error', ['올바른 Repository 주소를 입력해주세요.']); }
+    if (!token)  { showStep(1); return setStatus('error', ['Personal Access Token을 입력해주세요.']); }
     if (selectedCollectionIds.length === 0) return setStatus('error', ['하나 이상의 컬렉션을 선택해주세요.']);
 
-    // token은 UI에서 자체 보관 — plugin main으로 전달하지 않음
-    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, folderPath };
+    // 브랜치명: 사용자 입력 우선, 없으면 타임스탬프 자동 생성
+    const _d = new Date();
+    const _pad = (n) => String(n).padStart(2, '0');
+    const timestamp = `${_d.getFullYear()}${_pad(_d.getMonth()+1)}${_pad(_d.getDate())}-${_pad(_d.getHours())}${_pad(_d.getMinutes())}`;
+    const newBranch = newBranchInput || `figma-sync/${timestamp}`;
+
+    pendingSyncParams = { owner: parsed.owner, repo: parsed.repo, token, baseBranch, newBranch, folderPath };
 
     setLoading(true);
     setStatus('info', [`Figma 변수를 읽는 중... (${selectedCollectionIds.length}개 컬렉션)`]);
 
-    // 응답이 없을 경우 자동 타임아웃 처리
     syncTimeoutId = setTimeout(() => {
       pendingSyncParams = null;
       syncTimeoutId = null;
@@ -539,23 +635,17 @@
     }, SYNC_TIMEOUT_MS);
 
     parent.postMessage({
-      pluginMessage: {
-        type: 'request-variables',
-        payload: { selectedCollectionIds },
-      }
+      pluginMessage: { type: 'request-variables', payload: { selectedCollectionIds } }
     }, '*');
   });
 
   // ── Plugin Main으로부터 메시지 수신 ─────────────────────
-  // addEventListener 사용 — onmessage 직접 할당은 재할당 시 덮어써지는 위험이 있음
   window.addEventListener('message', async (event) => {
-    // Figma plugin iframe: parent만 신뢰
     if (event.source !== window.parent) return;
 
     const msg = event.data.pluginMessage;
     if (!msg) return;
 
-    // collections-loaded는 타임아웃과 무관하게 처리
     if (msg.type === 'collections-loaded') {
       renderCollections(msg.payload.collections);
       return;
@@ -566,60 +656,54 @@
 
     if (msg.type === 'variables-data') {
       if (!pendingSyncParams) return;
-      const { owner, repo, token, baseBranch, folderPath } = pendingSyncParams;
+      const { owner, repo, token, baseBranch, newBranch, folderPath } = pendingSyncParams;
       const files = msg.payload.files; // CollectionFilePayload[]
       pendingSyncParams = null;
 
-      setStatus('info', ['브랜치 생성 중...']);
-
       try {
-        const baseSha = await getBranchSha(owner, repo, baseBranch, token);
+        // 브랜치 존재 여부 확인: 있으면 재사용, 없으면 base 기준 생성
+        setStatus('info', ['브랜치 확인 중...']);
+        const existingBranchSha = await getBranchShaMaybe(owner, repo, newBranch, token);
 
-        // UTC 기준 타임스탬프 브랜치명 생성 (예: figma-sync/20240406-1430)
-        const timestamp = new Date().toISOString()
-          .slice(0, 16).replace('T', '').replace(/:/g, '').replace(/-/g, '')
-          .replace(/(\d{8})(\d{4})/, '$1-$2');
-        const newBranch = `figma-sync/${timestamp}`;
-
-        await createBranch(owner, repo, newBranch, baseSha, token);
-        setStatus('info', ['파일 커밋 중...']);
-
-        // 모든 파일의 기존 SHA를 병렬 조회
-        // 각 세그먼트를 URL 인코딩하여 공백·특수문자로 인한 잘못된 API URL 방지
-        const encodeRepoPath = (p) => p.split('/').map(encodeURIComponent).join('/');
-        const filePaths = files.map(
-          (f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`
-        );
-        const encodedFilePaths = filePaths.map(encodeRepoPath);
-
-        // 컬렉션명이 kebab-case 변환 후 충돌하는 경우 조기 오류 처리
-        const uniquePaths = new Set(filePaths);
-        if (uniquePaths.size !== filePaths.length) {
-          const seen = new Set();
-          for (const p of filePaths) {
-            if (seen.has(p)) throw new Error(`파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`);
-            seen.add(p);
-          }
+        if (existingBranchSha) {
+          setStatus('info', [`"${newBranch}" 브랜치 재사용`]);
+        } else {
+          const baseSha = await getBranchSha(owner, repo, baseBranch, token);
+          await createBranch(owner, repo, newBranch, baseSha, token);
+          setStatus('info', [`"${newBranch}" 브랜치 생성 완료`]);
         }
 
+        setStatus('info', ['파일 커밋 중...']);
+
+        const encodeRepoPath = (p) => p.split('/').map(encodeURIComponent).join('/');
+        const filePaths = files.map((f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`);
+
+        // 파일 경로 중복 감지
+        const seen = new Set();
+        for (const p of filePaths) {
+          if (seen.has(p)) throw new Error(`파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`);
+          seen.add(p);
+        }
+
+        const encodedFilePaths = filePaths.map(encodeRepoPath);
+
+        // 기존 파일 SHA 병렬 조회 (newBranch 기준)
         const existingShas = await Promise.all(
-          encodedFilePaths.map((path) => getFileSha(owner, repo, path, baseBranch, token))
+          encodedFilePaths.map((path) => getFileSha(owner, repo, path, newBranch, token))
         );
 
-        // 각 컬렉션 파일을 순차 커밋
+        // 컬렉션별 순차 커밋
         for (let i = 0; i < files.length; i++) {
           const { collectionName, tokensJson } = files[i];
-          const existingSha = existingShas[i];
           await putFile(
             owner, repo, encodedFilePaths[i], tokensJson,
             `chore: sync "${collectionName}" tokens from Figma`,
-            newBranch, token, existingSha
+            newBranch, token, existingShas[i]
           );
         }
 
         setStatus('info', ['PR 생성 중...']);
         const prUrl = await createPR(owner, repo, newBranch, baseBranch, token);
-
         setStatus('success', ['PR이 생성되었습니다!'], { url: prUrl, label: prUrl });
       } catch (e) {
         setStatus('error', [`오류: ${e.message}`]);
@@ -629,7 +713,7 @@
     }
 
     if (msg.type === 'error') {
-      pendingSyncParams = null; // 에러 경로에서도 토큰 즉시 클리어
+      pendingSyncParams = null;
       setStatus('error', [`플러그인 오류: ${msg.message}`]);
       setLoading(false);
     }
