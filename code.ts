@@ -5,7 +5,7 @@ figma.showUI(__html__, { width: 332, height: 510 });
 
 // ── 상수 ─────────────────────────────────────────────────
 
-const DTCG_TYPE: Record<VariableResolvedDataType, DesignToken["$type"]> = {
+const DTCG_TYPE: Record<VariableResolvedDataType, DesignToken["type"]> = {
   COLOR: "color",
   FLOAT: "number",
   STRING: "string",
@@ -21,9 +21,9 @@ const UI_MAX_HEIGHT = 800;
 // W3C Design Token Community Group 표준 (Style Dictionary v4 호환)
 
 interface DesignToken {
-  $value: string | number | boolean;
-  $type: "color" | "number" | "string" | "boolean";
-  $description?: string;
+  value: string | number | boolean;
+  type: "color" | "number" | "string" | "boolean";
+  description?: string;
 }
 
 interface TokenGroup {
@@ -38,22 +38,23 @@ interface CollectionFilePayload {
 // ── 타입 가드 ─────────────────────────────────────────────
 
 function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
-  return "$value" in node;
+  return node != null && typeof node === "object" && "value" in node;
 }
 
 // ── 메시지 타입 ───────────────────────────────────────────
 
 type PluginMessage =
   | { type: "request-variables"; payload: { selectedCollectionIds: string[] } }
+  | { type: "request-collections" }
   | { type: "save-token"; payload: { encrypted: string } }
   | { type: "clear-token" }
+  | { type: "save-repo"; payload: { repo: string } }
   | { type: "resize"; width: number; height: number }
   | { type: "close" };
 
-// ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
+// ── 컬렉션 목록 전송 (시작 시 + 재요청 시 공통 사용) ──────
 
-(async () => {
-  // 컬렉션 목록 전송
+async function sendCollections(): Promise<void> {
   try {
     const collections =
       await figma.variables.getLocalVariableCollectionsAsync();
@@ -76,6 +77,12 @@ type PluginMessage =
         e instanceof Error ? e.message : "컬렉션 목록을 불러오지 못했습니다.",
     });
   }
+}
+
+// ── 시작: 컬렉션 목록 + 저장된 토큰을 UI로 전송 ─────────
+
+(async () => {
+  await sendCollections();
 
   // 저장된 암호화 토큰 전송 (없으면 null)
   try {
@@ -84,6 +91,14 @@ type PluginMessage =
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted } });
   } catch (_e) {
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted: null } });
+  }
+
+  // 저장된 repo URL 전송 (없으면 null)
+  try {
+    const storedRepo = await figma.clientStorage.getAsync("repo-url");
+    figma.ui.postMessage({ type: "stored-repo", payload: { repo: storedRepo ?? null } });
+  } catch (_e) {
+    figma.ui.postMessage({ type: "stored-repo", payload: { repo: null } });
   }
 })();
 
@@ -110,6 +125,10 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     }
   }
 
+  if (msg.type === "request-collections") {
+    await sendCollections();
+  }
+
   if (msg.type === "resize") {
     const w = Math.min(
       Math.max(Math.round(msg.width), UI_MIN_WIDTH),
@@ -128,6 +147,14 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
       figma.ui.postMessage({ type: "token-saved", payload: { success: true } });
     } catch (_e) {
       figma.ui.postMessage({ type: "token-saved", payload: { success: false } });
+    }
+  }
+
+  if (msg.type === "save-repo") {
+    try {
+      await figma.clientStorage.setAsync("repo-url", msg.payload.repo);
+    } catch (_e) {
+      // 저장 실패는 무시 (다음에 다시 입력하면 됨)
     }
   }
 
@@ -184,7 +211,7 @@ async function buildTokensByCollection(
 
     for (const variable of collectionVariables) {
       const rawValue = variable.valuesByMode[defaultModeId];
-      if (rawValue === undefined) continue;
+      if (rawValue == null) continue;
 
       // dangling alias 경고: alias 대상이 미선택 컬렉션에 있으면 warn
       if (
@@ -201,11 +228,11 @@ async function buildTokensByCollection(
       }
 
       const token: DesignToken = {
-        $value: toTokenValue(rawValue, variable.resolvedType, idToPath),
-        $type: DTCG_TYPE[variable.resolvedType],
+        value: toTokenValue(rawValue, variable.resolvedType, idToPath),
+        type: DTCG_TYPE[variable.resolvedType],
       };
       if (variable.description) {
-        token.$description = variable.description;
+        token.description = variable.description;
       }
 
       // 변수 이름 그대로 경로 세그먼트로 사용 (prefix 제거 없음)
@@ -228,9 +255,10 @@ function toTokenValue(
   value: VariableValue,
   resolvedType: VariableResolvedDataType,
   idToPath: Record<string, string[]>,
-): DesignToken["$value"] {
+): DesignToken["value"] {
   // VariableAlias → "{Color.Blue.100}" Style Dictionary 참조 표기
   if (
+    value != null &&
     typeof value === "object" &&
     "type" in value &&
     value.type === "VARIABLE_ALIAS"
@@ -242,6 +270,7 @@ function toTokenValue(
   // COLOR: 0~1 범위 RGB(A) → hex / rgba 문자열
   if (
     resolvedType === "COLOR" &&
+    value != null &&
     typeof value === "object" &&
     "r" in value &&
     "g" in value &&
