@@ -1,0 +1,16 @@
+{
+  "color": {
+    "vermilion": {
+      "500": {
+        "value": "#f9603e",
+        "type": "color"
+      }
+    }
+  },
+  "spacing": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    }
+  }
+}
