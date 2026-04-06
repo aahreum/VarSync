@@ -394,7 +394,7 @@
   let pendingSyncParams = null;
   let syncTimeoutId = null;
   let collectionsReady = false;
-  let hasStoredToken = false; // clientStorage에 암호화 토큰이 존재하는지 추적
+  let hasStoredToken = false; // code.ts의 token-saved/token-cleared 확인 후 갱신
 
   // ── AES-GCM 암호화 ──────────────────────────────────────
   // 키는 PBKDF2로 유도. passphrase는 코드에 내장되어 있으므로
@@ -404,7 +404,10 @@
     86, 97, 114, 83, 121, 110, 99, 83, 97, 108, 116, 50, 48, 50, 52, 33
   ]); // "VarSyncSalt2024!" in bytes
 
-  async function deriveCryptoKey() {
+  // passphrase/salt가 상수이므로 키를 한 번만 유도하고 세션 내 캐시
+  let _cachedCryptoKey = null;
+  async function getCryptoKey() {
+    if (_cachedCryptoKey) return _cachedCryptoKey;
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       new TextEncoder().encode(CRYPTO_PASSPHRASE),
@@ -412,18 +415,20 @@
       false,
       ['deriveKey']
     );
-    return crypto.subtle.deriveKey(
+    _cachedCryptoKey = await crypto.subtle.deriveKey(
       { name: 'PBKDF2', salt: CRYPTO_SALT, iterations: 100000, hash: 'SHA-256' },
       keyMaterial,
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt', 'decrypt']
     );
+    return _cachedCryptoKey;
   }
 
-  /** 토큰을 AES-GCM으로 암호화. 반환값: "base64(iv).base64(ciphertext)" */
+  /** 토큰을 AES-GCM으로 암호화. 반환값: "base64(iv)$base64(ciphertext)"
+   *  구분자 '$'는 Base64 알파벳에 없어 안전 */
   async function encryptToken(token) {
-    const key = await deriveCryptoKey();
+    const key = await getCryptoKey();
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ciphertext = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv },
@@ -431,24 +436,24 @@
       new TextEncoder().encode(token)
     );
     const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
-    return `${toB64(iv)}.${toB64(ciphertext)}`;
+    return `${toB64(iv)}$${toB64(ciphertext)}`;
   }
 
-  /** "base64(iv).base64(ciphertext)" → 원본 토큰 문자열. 실패 시 null */
+  /** "base64(iv)$base64(ciphertext)" → 원본 토큰 문자열. 복호화 실패 시 null */
   async function decryptToken(stored) {
     try {
-      const [ivB64, ctB64] = stored.split('.');
-      if (!ivB64 || !ctB64) return null;
+      const sep = stored.indexOf('$');
+      if (sep === -1) return null;
       const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-      const key = await deriveCryptoKey();
+      const key = await getCryptoKey();
       const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: fromB64(ivB64) },
+        { name: 'AES-GCM', iv: fromB64(stored.slice(0, sep)) },
         key,
-        fromB64(ctB64)
+        fromB64(stored.slice(sep + 1))
       );
       return new TextDecoder().decode(decrypted);
     } catch {
-      return null; // 복호화 실패 시 조용히 null 반환
+      return null; // 복호화 실패 — 호출자가 stale 데이터 처리
     }
   }
 
@@ -688,12 +693,11 @@
   document.getElementById('chk-save-token').addEventListener('change', updateTokenSaveUI);
 
   document.getElementById('btn-clear-token').addEventListener('click', () => {
+    // code.ts가 token-cleared 확인 메시지를 보낸 후 상태 갱신
     parent.postMessage({ pluginMessage: { type: 'clear-token' } }, '*');
-    hasStoredToken = false;
     document.getElementById('chk-save-token').checked = false;
     document.getElementById('token').value = '';
-    updateTokenSaveUI();
-    setStatus('info', ['저장된 토큰이 삭제되었습니다.']);
+    setStatus('info', ['저장된 토큰을 삭제 중...']);
   });
 
   // ── Step 1 버튼 ────────────────────────────────────────
@@ -732,12 +736,10 @@
       return setStatus('error', ['브랜치 이름에 사용할 수 없는 문자가 포함되어 있습니다. (공백, ~, ^, :, ?, * 등 불가)']);
     }
 
-    // "토큰 암호화 저장" 체크 시 암호화 후 저장
+    // "토큰 암호화 저장" 체크 시 암호화 후 저장 (hasStoredToken은 token-saved 확인 후 갱신)
     if (document.getElementById('chk-save-token').checked && token) {
       encryptToken(token).then((encrypted) => {
         parent.postMessage({ pluginMessage: { type: 'save-token', payload: { encrypted } } }, '*');
-        hasStoredToken = true;
-        updateTokenSaveUI();
       });
     }
 
@@ -801,8 +803,31 @@
             document.getElementById('chk-save-token').checked = true;
             hasStoredToken = true;
             updateTokenSaveUI();
+          } else {
+            // 복호화 실패 = stale 또는 손상된 데이터 → 자동 삭제
+            parent.postMessage({ pluginMessage: { type: 'clear-token' } }, '*');
           }
         });
+      }
+      return;
+    }
+
+    // save-token 결과 확인 — 실제 저장 성공 후 hasStoredToken 갱신
+    if (msg.type === 'token-saved') {
+      hasStoredToken = msg.payload.success;
+      if (!msg.payload.success) {
+        setStatus('error', ['토큰 저장에 실패했습니다. 다시 시도해주세요.']);
+      }
+      updateTokenSaveUI();
+      return;
+    }
+
+    // clear-token 결과 확인
+    if (msg.type === 'token-cleared') {
+      hasStoredToken = false;
+      updateTokenSaveUI();
+      if (msg.payload.success) {
+        setStatus('info', ['저장된 토큰이 삭제되었습니다.']);
       }
       return;
     }

@@ -123,11 +123,21 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
   }
 
   if (msg.type === "save-token") {
-    await figma.clientStorage.setAsync("enc-token", msg.payload.encrypted);
+    try {
+      await figma.clientStorage.setAsync("enc-token", msg.payload.encrypted);
+      figma.ui.postMessage({ type: "token-saved", payload: { success: true } });
+    } catch {
+      figma.ui.postMessage({ type: "token-saved", payload: { success: false } });
+    }
   }
 
   if (msg.type === "clear-token") {
-    await figma.clientStorage.deleteAsync("enc-token");
+    try {
+      await figma.clientStorage.deleteAsync("enc-token");
+      figma.ui.postMessage({ type: "token-cleared", payload: { success: true } });
+    } catch {
+      figma.ui.postMessage({ type: "token-cleared", payload: { success: false } });
+    }
   }
 
   if (msg.type === "close") {
