@@ -91,8 +91,8 @@
         color: #fff;
       }
       .step-dot.done {
-        background: #1a7f3c;
-        color: #fff;
+        background: #e0f2fe;
+        color: #18a0fb;
       }
 
       .step-line {
@@ -226,6 +226,238 @@
         line-height: 1.5;
       }
 
+      /* ── 컬렉션 카드 ─────────────────────────────────────────── */
+      .collection-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .collection-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        background: #f7f8fa;
+        cursor: pointer;
+        user-select: none;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .collection-header:hover {
+        background: #eef0f4;
+      }
+
+      .collection-header .arrow {
+        font-size: 10px;
+        color: #888;
+        transition: transform 0.15s;
+        flex-shrink: 0;
+      }
+
+      .collection-card.open .arrow {
+        transform: rotate(90deg);
+      }
+
+      .collection-header .col-name {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .collection-header .count {
+        font-size: 10px;
+        color: #888;
+        flex-shrink: 0;
+      }
+
+      .collection-body {
+        display: none;
+      }
+
+      .collection-card.open .collection-body {
+        display: block;
+      }
+
+      /* ── 대시보드 레이아웃 ──────────────────────────────────── */
+      .dashboard {
+        display: flex;
+        border-top: 1px solid #e0e0e0;
+      }
+
+      .type-nav {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #e0e0e0;
+        background: #fafafa;
+        flex-shrink: 0;
+        min-width: 64px;
+      }
+
+      .type-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 10px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background 0.1s;
+      }
+
+      .type-nav-item:last-child {
+        border-bottom: none;
+      }
+
+      .type-nav-item:hover {
+        background: #eef0f4;
+      }
+
+      .type-nav-item.active {
+        background: #fff;
+        box-shadow: inset 2px 0 0 #18a0fb;
+      }
+
+      .type-nav-label {
+        font-size: 10px;
+        font-weight: 500;
+        color: #666;
+        flex: 1;
+        cursor: pointer;
+        user-select: none;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .type-nav-item.active .type-nav-label {
+        color: #18a0fb;
+        font-weight: 600;
+      }
+
+      .nav-count {
+        font-size: 9px;
+        color: #aaa;
+        font-weight: 400;
+        flex-shrink: 0;
+      }
+
+      .type-nav-item.active .nav-count {
+        color: #7dcbfd;
+      }
+
+      .type-nav-item.unchecked .type-nav-label {
+        color: #bbb;
+        text-decoration: line-through;
+      }
+
+      .type-content {
+        flex: 1;
+        min-width: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 0;
+      }
+
+      /* ── 컬러 그리드 ────────────────────────────────────────── */
+      .color-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .color-chip {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .color-circle {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        cursor: default;
+      }
+
+      .color-circle:hover {
+        transform: scale(1.15);
+        transition: transform 0.1s;
+      }
+
+      .color-chip-label {
+        font-size: 9px;
+        color: #666;
+        text-align: center;
+        max-width: 60px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .color-chip-value {
+        font-family: "Menlo", "Consolas", monospace;
+        font-size: 8px;
+        color: #999;
+      }
+
+      /* ── 토큰 미리보기 테이블 ────────────────────────────────── */
+      .token-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+      }
+
+      .token-table th {
+        position: sticky;
+        top: 0;
+        background: #f0f0f0;
+        padding: 4px 8px;
+        text-align: left;
+        font-weight: 500;
+        color: #666;
+        font-size: 10px;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .token-table td {
+        padding: 4px 8px;
+        border-bottom: 1px solid #f0f0f0;
+        color: #333;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 120px;
+      }
+
+      .token-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .token-table .token-name {
+        font-family: "Menlo", "Consolas", monospace;
+        font-size: 10px;
+      }
+
+      .token-table .token-value {
+        font-family: "Menlo", "Consolas", monospace;
+        font-size: 10px;
+      }
+
+      /* ── 빈 상태 ────────────────────────────────────────────── */
+      .empty-type {
+        padding: 20px;
+        text-align: center;
+        font-size: 11px;
+        color: #aaa;
+      }
+
       /* ── 구분선 ─────────────────────────────────────────────── */
       .divider {
         height: 1px;
@@ -237,7 +469,7 @@
       .checkbox-row {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
         margin-top: 4px;
       }
 
@@ -257,11 +489,34 @@
       }
 
       input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
         width: 14px;
         height: 14px;
-        accent-color: #18a0fb;
+        border: 1.5px solid #ccc;
+        border-radius: 3px;
         cursor: pointer;
         flex-shrink: 0;
+        position: relative;
+        background: #fff;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      input[type="checkbox"]:checked {
+        background: #18a0fb;
+        border-color: #18a0fb;
+      }
+
+      input[type="checkbox"]:checked::after {
+        content: "";
+        position: absolute;
+        left: 3.5px;
+        top: 1px;
+        width: 4px;
+        height: 7px;
+        border: solid #fff;
+        border-width: 0 1.5px 1.5px 0;
+        transform: rotate(45deg);
       }
 
       #collections-loading {
@@ -624,6 +879,17 @@
           document.querySelectorAll("[data-collection-id]:checked"),
         ).map((el) => el.dataset.collectionId);
 
+        // 그룹별 체크 해제된 항목 수집
+        const excludedGroups = {};
+        const uncheckedGroups = document.querySelectorAll(
+          "[data-group-name]:not(:checked)",
+        );
+        for (const el of uncheckedGroups) {
+          const colId = el.dataset.groupCollectionId;
+          if (!excludedGroups[colId]) excludedGroups[colId] = [];
+          excludedGroups[colId].push(el.dataset.groupName);
+        }
+
         return {
           repoInput: document.getElementById("repo").value,
           token: document.getElementById("token").value.trim(),
@@ -634,6 +900,7 @@
             document.getElementById("folder-path").value,
           ),
           selectedCollectionIds,
+          excludedGroups,
         };
       }
 
@@ -698,10 +965,12 @@
         document.getElementById("step-1").hidden = n !== 1;
         document.getElementById("step-2").hidden = n !== 2;
         // step 1로 돌아오면 active로 복원 (done 유지 X)
-        document.getElementById("step-dot-1").className =
-          n === 1 ? "step-dot active" : "step-dot done";
-        document.getElementById("step-dot-2").className =
-          n === 2 ? "step-dot active" : "step-dot";
+        const dot1 = document.getElementById("step-dot-1");
+        dot1.className = n === 1 ? "step-dot active" : "step-dot done";
+        dot1.textContent = n === 1 ? "1" : "✓";
+        const dot2 = document.getElementById("step-dot-2");
+        dot2.className = n === 2 ? "step-dot active" : "step-dot";
+        dot2.textContent = "2";
         // 뒤로 가기 시 에러 컨텍스트 보존 — 앞으로 갈 때만 클리어
         if (n === 2) {
           clearStatus();
@@ -742,23 +1011,201 @@
         }
 
         collections.forEach((col) => {
-          const lbl = document.createElement("label");
-          lbl.className = "checkbox-label";
+          const card = document.createElement("div");
+          card.className = "collection-card open";
+
+          // ── 헤더: 체크박스 + 이름 + 개수 + 화살표
+          const header = document.createElement("div");
+          header.className = "collection-header";
 
           const chk = document.createElement("input");
           chk.type = "checkbox";
           chk.dataset.collectionId = col.id;
           chk.checked = true;
+          let syncing = false;
+          chk.addEventListener("click", (e) => e.stopPropagation());
+          chk.addEventListener("change", () => {
+            syncing = true;
+            const groupChks = card.querySelectorAll("[data-group-name]");
+            groupChks.forEach((g) => {
+              g.checked = chk.checked;
+              g.closest(".type-nav-item").classList.toggle("unchecked", !g.checked);
+            });
+            syncing = false;
+          });
 
-          const name = document.createTextNode(col.name);
+          const arrow = document.createElement("span");
+          arrow.className = "arrow";
+          arrow.textContent = "▶";
+
+          const name = document.createElement("span");
+          name.className = "col-name";
+          name.textContent = col.name;
+
           const count = document.createElement("span");
           count.className = "count";
-          count.textContent = `(${col.variableCount})`;
+          count.textContent = `${col.variableCount}개`;
 
-          lbl.appendChild(chk);
-          lbl.appendChild(name);
-          lbl.appendChild(count);
-          list.appendChild(lbl);
+          header.appendChild(chk);
+          header.appendChild(arrow);
+          header.appendChild(name);
+          header.appendChild(count);
+
+          header.addEventListener("click", () => {
+            card.classList.toggle("open");
+          });
+
+          // ── 바디: 대시보드 (좌측 그룹 메뉴 + 우측 콘텐츠)
+          const body = document.createElement("div");
+          body.className = "collection-body";
+
+          const vars = col.variables || [];
+          // 첫 번째 경로 세그먼트로 그룹핑 (color, spacing 등)
+          const groupOrder = [];
+          const grouped = {};
+          for (const v of vars) {
+            const group = v.name.split("/")[0];
+            if (!grouped[group]) {
+              grouped[group] = [];
+              groupOrder.push(group);
+            }
+            grouped[group].push(v);
+          }
+
+          if (groupOrder.length > 0) {
+            const dashboard = document.createElement("div");
+            dashboard.className = "dashboard";
+
+            const nav = document.createElement("div");
+            nav.className = "type-nav";
+
+            const content = document.createElement("div");
+            content.className = "type-content";
+
+            const panels = {};
+
+            groupOrder.forEach((group, idx) => {
+              const items = grouped[group];
+              const isAllColor = items.every((v) => v.type === "COLOR");
+
+              // 네비 아이템 (체크박스 + 라벨 + 건수)
+              const navItem = document.createElement("div");
+              navItem.className = "type-nav-item" + (idx === 0 ? " active" : "");
+
+              const navChk = document.createElement("input");
+              navChk.type = "checkbox";
+              navChk.checked = true;
+              navChk.dataset.groupName = group;
+              navChk.dataset.groupCollectionId = col.id;
+              navChk.addEventListener("click", (e) => e.stopPropagation());
+              navChk.addEventListener("change", () => {
+                navItem.classList.toggle("unchecked", !navChk.checked);
+                if (syncing) return;
+                // 하위 그룹 중 하나라도 체크되면 컬렉션도 체크
+                const anyChecked = card.querySelector("[data-group-name]:checked");
+                chk.checked = !!anyChecked;
+              });
+
+              const navLabel = document.createElement("span");
+              navLabel.className = "type-nav-label";
+              navLabel.textContent = group;
+
+              const navCount = document.createElement("span");
+              navCount.className = "nav-count";
+              navCount.textContent = items.length;
+
+              navItem.appendChild(navChk);
+              navItem.appendChild(navLabel);
+              navItem.appendChild(navCount);
+
+              navItem.addEventListener("click", () => {
+                nav.querySelectorAll(".type-nav-item").forEach((b) => b.classList.remove("active"));
+                navItem.classList.add("active");
+                Object.values(panels).forEach((p) => (p.hidden = true));
+                panels[group].hidden = false;
+              });
+              nav.appendChild(navItem);
+
+              // 콘텐츠 패널
+              const panel = document.createElement("div");
+              panel.hidden = idx !== 0;
+              panels[group] = panel;
+
+              if (isAllColor) {
+                // 컬러 그리드
+                const grid = document.createElement("div");
+                grid.className = "color-grid";
+                for (const v of items) {
+                  const chip = document.createElement("div");
+                  chip.className = "color-chip";
+                  chip.title = `${v.name}\n${v.value}`;
+
+                  const circle = document.createElement("div");
+                  circle.className = "color-circle";
+                  circle.style.backgroundColor = v.colorHex || v.value;
+
+                  const label = document.createElement("div");
+                  label.className = "color-chip-label";
+                  const segments = v.name.split("/");
+                  label.textContent = segments[segments.length - 1];
+
+                  const val = document.createElement("div");
+                  val.className = "color-chip-value";
+                  val.textContent = v.value;
+
+                  chip.appendChild(circle);
+                  chip.appendChild(label);
+                  chip.appendChild(val);
+                  grid.appendChild(chip);
+                }
+                panel.appendChild(grid);
+              } else {
+                // 테이블
+                const table = document.createElement("table");
+                table.className = "token-table";
+                const thead = document.createElement("thead");
+                const headRow = document.createElement("tr");
+                const thName = document.createElement("th");
+                thName.textContent = "Name";
+                const thValue = document.createElement("th");
+                thValue.textContent = "Value";
+                headRow.appendChild(thName);
+                headRow.appendChild(thValue);
+                thead.appendChild(headRow);
+                table.appendChild(thead);
+
+                const tbody = document.createElement("tbody");
+                for (const v of items) {
+                  const tr = document.createElement("tr");
+                  const tdName = document.createElement("td");
+                  tdName.className = "token-name";
+                  // 첫 세그먼트(그룹명) 제외한 나머지 표시
+                  const parts = v.name.split("/");
+                  tdName.textContent = parts.slice(1).join(" / ") || parts[0];
+                  tdName.title = v.name;
+                  const tdVal = document.createElement("td");
+                  tdVal.className = "token-value";
+                  tdVal.textContent = v.value;
+                  tdVal.title = v.value;
+                  tr.appendChild(tdName);
+                  tr.appendChild(tdVal);
+                  tbody.appendChild(tr);
+                }
+                table.appendChild(tbody);
+                panel.appendChild(table);
+              }
+
+              content.appendChild(panel);
+            });
+
+            dashboard.appendChild(nav);
+            dashboard.appendChild(content);
+            body.appendChild(dashboard);
+          }
+
+          card.appendChild(header);
+          card.appendChild(body);
+          list.appendChild(card);
         });
 
         collectionsReady = true;
@@ -965,6 +1412,7 @@
           newBranchInput,
           folderPath,
           selectedCollectionIds,
+          excludedGroups,
         } = getFormValues();
 
         const parsed = parseGitHubUrl(repoInput);
@@ -1010,7 +1458,7 @@
           {
             pluginMessage: {
               type: "request-variables",
-              payload: { selectedCollectionIds },
+              payload: { selectedCollectionIds, excludedGroups },
             },
           },
           "*",
@@ -1118,18 +1566,18 @@
 
             const encodeRepoPath = (p) =>
               p.split("/").map(encodeURIComponent).join("/");
-            const filePaths = files.map(
-              (f) => `${folderPath}/${toKebabCase(f.collectionName)}.json`,
-            );
-
-            // 파일 경로 중복 감지
-            const seen = new Set();
-            for (const p of filePaths) {
-              if (seen.has(p))
-                throw new Error(
-                  `파일 경로 충돌: "${p}" — 컬렉션 이름을 고유하게 변경해주세요.`,
-                );
-              seen.add(p);
+            // 파일명 중복 시 접미사 부여
+            const filePaths = [];
+            const usedNames = {};
+            for (const f of files) {
+              let base = toKebabCase(f.collectionName);
+              if (usedNames[base] != null) {
+                usedNames[base]++;
+                base = `${base}-${usedNames[base]}`;
+              } else {
+                usedNames[base] = 0;
+              }
+              filePaths.push(`${folderPath}/${base}.json`);
             }
 
             const encodedFilePaths = filePaths.map(encodeRepoPath);
