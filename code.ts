@@ -1,7 +1,7 @@
 // VarSync - Figma Variables → GitHub PR Sync Plugin
 // docs/01-figma-variables-api.md 참고
 
-figma.showUI(__html__, { width: 332, height: 510 });
+figma.showUI(__html__, { width: 392, height: 510 });
 
 // ── 상수 ─────────────────────────────────────────────────
 
@@ -193,6 +193,9 @@ function formatPreviewValue(
     "r" in value
   ) {
     return rgbToCss(value as RGBA);
+  }
+  if (typeof value === "number") {
+    return String(parseFloat(value.toPrecision(6)));
   }
   return String(value);
 }
@@ -418,12 +421,13 @@ function toTokenValue(
     return `rgba(${r}, ${g}, ${b}, ${a})`;
   }
 
-  // FLOAT / STRING / BOOLEAN: typeof 가드 후 반환
-  if (
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-  ) {
+  // FLOAT: 부동소수점 오차 보정 (Figma 32비트 float → 깔끔한 값)
+  if (typeof value === "number") {
+    return parseFloat(value.toPrecision(6));
+  }
+
+  // STRING / BOOLEAN
+  if (typeof value === "string" || typeof value === "boolean") {
     return value;
   }
 
