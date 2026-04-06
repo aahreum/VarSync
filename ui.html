@@ -452,7 +452,7 @@
         fromB64(stored.slice(sep + 1))
       );
       return new TextDecoder().decode(decrypted);
-    } catch {
+    } catch (_e) {
       return null; // 복호화 실패 — 호출자가 stale 데이터 처리
     }
   }

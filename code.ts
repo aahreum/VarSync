@@ -82,7 +82,7 @@ type PluginMessage =
     const stored = await figma.clientStorage.getAsync("enc-token");
     const encrypted = stored !== undefined ? stored : null;
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted } });
-  } catch {
+  } catch (_e) {
     figma.ui.postMessage({ type: "stored-token", payload: { encrypted: null } });
   }
 })();
@@ -126,7 +126,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     try {
       await figma.clientStorage.setAsync("enc-token", msg.payload.encrypted);
       figma.ui.postMessage({ type: "token-saved", payload: { success: true } });
-    } catch {
+    } catch (_e) {
       figma.ui.postMessage({ type: "token-saved", payload: { success: false } });
     }
   }
@@ -135,7 +135,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
     try {
       await figma.clientStorage.deleteAsync("enc-token");
       figma.ui.postMessage({ type: "token-cleared", payload: { success: true } });
-    } catch {
+    } catch (_e) {
       figma.ui.postMessage({ type: "token-cleared", payload: { success: false } });
     }
   }
