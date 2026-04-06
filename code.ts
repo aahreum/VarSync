@@ -81,12 +81,17 @@ async function sendCollections(): Promise<void> {
     const collectionModeMap = new Map(
       collections.map((c) => [c.id, c.defaultModeId]),
     );
+    // 컬렉션 ID → 변수 목록 매핑 (O(M) 그룹핑)
+    const varsByCollection = new Map<string, Variable[]>();
+    for (const v of allVariables) {
+      const list = varsByCollection.get(v.variableCollectionId);
+      if (list) list.push(v);
+      else varsByCollection.set(v.variableCollectionId, [v]);
+    }
 
     const payload = localCollections.map((c) => {
       const defaultModeId = c.defaultModeId;
-      const vars = allVariables.filter(
-        (v) => v.variableCollectionId === c.id,
-      );
+      const vars = varsByCollection.get(c.id) ?? [];
 
       const variables: VariablePreview[] = [];
       for (const v of vars) {
@@ -94,7 +99,7 @@ async function sendCollections(): Promise<void> {
         if (raw == null) continue;
 
         // alias인 경우 resolved 값 추적
-        const resolved = resolveValue(raw, v.resolvedType, varById, collectionModeMap);
+        const resolved = resolveValue(raw, varById, collectionModeMap);
 
         const preview: VariablePreview = {
           name: v.name,
@@ -108,10 +113,7 @@ async function sendCollections(): Promise<void> {
           typeof resolved === "object" &&
           "r" in resolved
         ) {
-          const r = Math.round((resolved as RGB).r * 255);
-          const g = Math.round((resolved as RGB).g * 255);
-          const b = Math.round((resolved as RGB).b * 255);
-          preview.colorHex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+          preview.colorHex = rgbToCss(resolved as RGBA);
         }
 
         variables.push(preview);
@@ -138,10 +140,24 @@ async function sendCollections(): Promise<void> {
   }
 }
 
+// ── RGB 헬퍼 ──────────────────────────────────────────────
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map((c) => Math.round(c * 255).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function rgbToCss(value: RGB | RGBA): string {
+  const r = Math.round(value.r * 255);
+  const g = Math.round(value.g * 255);
+  const b = Math.round(value.b * 255);
+  const a = "a" in value ? (value as RGBA).a : 1;
+  if (a === 1) return rgbToHex(r, g, b);
+  return `rgba(${r}, ${g}, ${b}, ${Math.round(a * 1000) / 1000})`;
+}
+
 /** alias를 재귀적으로 따라가서 실제 값을 반환 (최대 10단계) */
 function resolveValue(
   value: VariableValue,
-  resolvedType: VariableResolvedDataType,
   varById: Map<string, Variable>,
   collectionModeMap: Map<string, string>,
   depth = 0,
@@ -159,7 +175,7 @@ function resolveValue(
     if (!modeId) return value;
     const targetValue = target.valuesByMode[modeId];
     if (targetValue == null) return value;
-    return resolveValue(targetValue, resolvedType, varById, collectionModeMap, depth + 1);
+    return resolveValue(targetValue, varById, collectionModeMap, depth + 1);
   }
   return value;
 }
@@ -174,14 +190,7 @@ function formatPreviewValue(
     typeof value === "object" &&
     "r" in value
   ) {
-    const r = Math.round((value as RGB).r * 255);
-    const g = Math.round((value as RGB).g * 255);
-    const b = Math.round((value as RGB).b * 255);
-    const a = "a" in value ? (value as RGBA).a : 1;
-    if (a === 1) {
-      return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-    }
-    return `rgba(${r}, ${g}, ${b}, ${Math.round(a * 1000) / 1000})`;
+    return rgbToCss(value as RGBA);
   }
   return String(value);
 }
@@ -299,9 +308,14 @@ async function buildTokensByCollection(
   const idToPath: Record<string, string[]> = {};
   // dangling alias 감지용: variableId → 속한 collectionId
   const varIdToCollectionId: Record<string, string> = {};
+  // 컬렉션 ID → 변수 목록 매핑 (O(M) 그룹핑)
+  const varsByCollection = new Map<string, Variable[]>();
   for (const v of allVariables) {
     idToPath[v.id] = v.name.split("/");
     varIdToCollectionId[v.id] = v.variableCollectionId;
+    const list = varsByCollection.get(v.variableCollectionId);
+    if (list) list.push(v);
+    else varsByCollection.set(v.variableCollectionId, [v]);
   }
 
   // Pass 2: 선택된 컬렉션별 TokenGroup 구성
@@ -314,9 +328,7 @@ async function buildTokensByCollection(
     const defaultModeId = collection.defaultModeId;
     const tokens: TokenGroup = {};
 
-    const collectionVariables = allVariables.filter(
-      (v) => v.variableCollectionId === collectionId,
-    );
+    const collectionVariables = varsByCollection.get(collectionId) ?? [];
 
     const excluded = new Set(excludedGroups[collectionId] ?? []);
 

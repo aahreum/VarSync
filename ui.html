@@ -1023,6 +1023,13 @@
           chk.dataset.collectionId = col.id;
           chk.checked = true;
           chk.addEventListener("click", (e) => e.stopPropagation());
+          chk.addEventListener("change", () => {
+            const groupChks = card.querySelectorAll("[data-group-name]");
+            groupChks.forEach((g) => {
+              g.checked = chk.checked;
+              g.dispatchEvent(new Event("change"));
+            });
+          });
 
           const arrow = document.createElement("span");
           arrow.className = "arrow";
@@ -1150,7 +1157,14 @@
                 const table = document.createElement("table");
                 table.className = "token-table";
                 const thead = document.createElement("thead");
-                thead.innerHTML = "<tr><th>Name</th><th>Value</th></tr>";
+                const headRow = document.createElement("tr");
+                const thName = document.createElement("th");
+                thName.textContent = "Name";
+                const thValue = document.createElement("th");
+                thValue.textContent = "Value";
+                headRow.appendChild(thName);
+                headRow.appendChild(thValue);
+                thead.appendChild(headRow);
                 table.appendChild(thead);
 
                 const tbody = document.createElement("tbody");
