@@ -1,0 +1,14 @@
+{
+  "color": {
+    "bg": {
+      "cta": {
+        "value": "{color.vermilion.500}",
+        "type": "color"
+      },
+      "dimmed": {
+        "value": "rgba(0, 0, 0, 0.6)",
+        "type": "color"
+      }
+    }
+  }
+}
