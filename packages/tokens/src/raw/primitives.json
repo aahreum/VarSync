@@ -1,0 +1,34 @@
+{
+  "160": {
+    "value": "{Number}",
+    "type": "number"
+  },
+  "color": {
+    "vermilion": {
+      "500": {
+        "value": "#f9603e",
+        "type": "color"
+      }
+    }
+  },
+  "spacing": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    }
+  },
+  "opacity": {
+    "0": {
+      "value": 0,
+      "type": "number"
+    },
+    "10": {
+      "value": 0.1,
+      "type": "number"
+    }
+  },
+  "Number": {
+    "value": 1.5,
+    "type": "number"
+  }
+}
