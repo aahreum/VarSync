@@ -541,7 +541,6 @@
       }
 
       button {
-        flex: 1;
         height: 32px;
         border: none;
         border-radius: 6px;
@@ -551,6 +550,10 @@
         transition:
           background 0.15s,
           opacity 0.15s;
+      }
+
+      .btn-row button {
+        flex: 1;
       }
 
       button:disabled {
@@ -607,6 +610,43 @@
       /* ── 스텝 패널 ──────────────────────────────────────────── */
       .step-panel[hidden] {
         display: none;
+      }
+
+      /* ── 탭 바 (Step 2) ───────────────────────────────────── */
+      .tab-bar {
+        display: flex;
+        border-bottom: 1px solid #e0e0e0;
+        margin-bottom: 12px;
+      }
+
+      .tab {
+        flex: none;
+        height: 30px;
+        padding: 0 14px;
+        background: transparent;
+        color: #888;
+        border-radius: 0;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        font-size: 12px;
+        font-weight: 500;
+        transition: color 0.15s, border-bottom-color 0.15s;
+      }
+
+      .tab:hover {
+        color: #333;
+        background: transparent;
+      }
+
+      .tab.active {
+        color: #18a0fb;
+        border-bottom-color: #18a0fb;
+        background: transparent;
+      }
+
+      #panel-variables,
+      #panel-styles {
+        margin-bottom: 4px;
       }
     </style>
   </head>
@@ -692,19 +732,19 @@
 
     <!-- ── Step 2: 컬렉션 선택 ──────────────────────────────── -->
     <div class="step-panel" id="step-2" hidden>
-      <div class="field">
-        <label>내보낼 컬렉션</label>
+      <div class="tab-bar">
+        <button class="tab active" id="tab-variables">Variables</button>
+        <button class="tab" id="tab-styles">Styles</button>
+      </div>
+
+      <div id="panel-variables">
         <div id="collections-list" class="checkbox-row">
           <span id="collections-loading">컬렉션 목록을 불러오는 중...</span>
         </div>
       </div>
 
-      <div id="styles-section" hidden>
-        <div class="divider"></div>
-        <div class="field">
-          <label>내보낼 Styles</label>
-          <div id="styles-list" class="checkbox-row"></div>
-        </div>
+      <div id="panel-styles" hidden>
+        <div id="styles-cards-container"></div>
       </div>
 
       <div class="divider"></div>
@@ -1261,58 +1301,216 @@
         updateSyncBtn();
       }
 
-      function renderStylesSection(stylesCounts) {
-        const section = document.getElementById("styles-section");
-        const list = document.getElementById("styles-list");
+      // ── 탭 전환 ─────────────────────────────────────────────
+      let activeTab = "variables";
+
+      function activateTab(tabName) {
+        activeTab = tabName;
+        const isVariables = tabName === "variables";
+        document.getElementById("panel-variables").hidden = !isVariables;
+        document.getElementById("panel-styles").hidden = isVariables;
+        document.getElementById("tab-variables").classList.toggle("active", isVariables);
+        document.getElementById("tab-styles").classList.toggle("active", !isVariables);
+      }
+
+      document.getElementById("tab-variables").addEventListener("click", () => activateTab("variables"));
+      document.getElementById("tab-styles").addEventListener("click", () => activateTab("styles"));
+
+      // ── Styles 카드 렌더링 ──────────────────────────────────
+      function renderStylesCards(stylesData) {
+        const container = document.getElementById("styles-cards-container");
 
         // 재렌더링 전 체크 상태 저장 (Step 1 → Step 2 재진입 시 초기화 방지)
         const prevChecked = {};
-        list.querySelectorAll("[data-style-key]").forEach((el) => {
+        container.querySelectorAll("[data-style-key]").forEach((el) => {
           prevChecked[el.dataset.styleKey] = el.checked;
         });
 
-        list.textContent = "";
+        container.textContent = "";
 
-        const paint = stylesCounts.paint ?? 0;
-        const text = stylesCounts.text ?? 0;
-        const effect = stylesCounts.effect ?? 0;
+        const paintItems = stylesData.paint ?? [];
+        const textItems = stylesData.text ?? [];
+        const effectItems = stylesData.effect ?? [];
 
-        if (paint + text + effect === 0) {
-          section.hidden = true;
+        if (paintItems.length + textItems.length + effectItems.length === 0) {
+          const msg = document.createElement("span");
+          msg.style.cssText = "font-size:11px;color:#888;display:block;padding:8px 0;";
+          msg.textContent = "Styles가 없습니다.";
+          container.appendChild(msg);
+          activateTab(activeTab);
+          updateSyncBtn();
           return;
         }
-        section.hidden = false;
 
-        const entries = [
-          { key: "paint", label: "Colors (Paint Styles)", count: paint },
-          { key: "text", label: "Typography (Text Styles)", count: text },
-          { key: "effect", label: "Effects", count: effect },
+        const styleEntries = [
+          { key: "paint", label: "Colors", items: paintItems, renderBody: renderPaintBody },
+          { key: "text", label: "Typography", items: textItems, renderBody: renderTextBody },
+          { key: "effect", label: "Effects", items: effectItems, renderBody: renderEffectBody },
         ];
 
-        for (const { key, label, count } of entries) {
-          if (count === 0) continue;
-          const lbl = document.createElement("label");
-          lbl.className = "checkbox-label";
+        let firstCard = true;
+        for (const { key, label, items, renderBody } of styleEntries) {
+          if (items.length === 0) continue;
+
+          if (!firstCard) {
+            const spacer = document.createElement("div");
+            spacer.style.height = "8px";
+            container.appendChild(spacer);
+          }
+          firstCard = false;
+
+          const card = document.createElement("div");
+          card.className = "collection-card open";
+
+          const header = document.createElement("div");
+          header.className = "collection-header";
 
           const chk = document.createElement("input");
           chk.type = "checkbox";
           chk.id = `chk-style-${key}`;
           chk.dataset.styleKey = key;
-          chk.checked = prevChecked[key] ?? true; // 이전 상태 복원, 최초엔 true
+          chk.checked = prevChecked[key] ?? true;
+          chk.addEventListener("click", (e) => e.stopPropagation());
           chk.addEventListener("change", updateSyncBtn);
 
-          const nameSpan = document.createElement("span");
-          nameSpan.textContent = label;
+          const arrow = document.createElement("span");
+          arrow.className = "arrow";
+          arrow.textContent = "▶";
 
-          const countSpan = document.createElement("span");
-          countSpan.className = "count";
-          countSpan.textContent = `(${count}개)`;
+          const name = document.createElement("span");
+          name.className = "col-name";
+          name.textContent = label;
 
-          lbl.appendChild(chk);
-          lbl.appendChild(nameSpan);
-          lbl.appendChild(countSpan);
-          list.appendChild(lbl);
+          const count = document.createElement("span");
+          count.className = "count";
+          count.textContent = `${items.length}개`;
+
+          header.appendChild(chk);
+          header.appendChild(arrow);
+          header.appendChild(name);
+          header.appendChild(count);
+          header.addEventListener("click", () => card.classList.toggle("open"));
+
+          const body = document.createElement("div");
+          body.className = "collection-body";
+          renderBody(body, items);
+
+          card.appendChild(header);
+          card.appendChild(body);
+          container.appendChild(card);
         }
+
+        activateTab(activeTab);
+        updateSyncBtn();
+      }
+
+      function renderPaintBody(body, items) {
+        const grid = document.createElement("div");
+        grid.className = "color-grid";
+        for (const item of items) {
+          const chip = document.createElement("div");
+          chip.className = "color-chip";
+          chip.title = `${item.name}\n${item.color}`;
+
+          const circle = document.createElement("div");
+          circle.className = "color-circle";
+          circle.style.backgroundColor = item.color;
+
+          const label = document.createElement("div");
+          label.className = "color-chip-label";
+          const segments = item.name.split("/");
+          label.textContent = segments[segments.length - 1];
+
+          const val = document.createElement("div");
+          val.className = "color-chip-value";
+          val.textContent = item.color;
+
+          chip.appendChild(circle);
+          chip.appendChild(label);
+          chip.appendChild(val);
+          grid.appendChild(chip);
+        }
+        body.appendChild(grid);
+      }
+
+      function renderTextBody(body, items) {
+        const table = document.createElement("table");
+        table.className = "token-table";
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        for (const col of ["Name", "Family", "Style", "Size"]) {
+          const th = document.createElement("th");
+          th.textContent = col;
+          headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        for (const item of items) {
+          const tr = document.createElement("tr");
+          const segments = item.name.split("/");
+
+          const tdName = document.createElement("td");
+          tdName.className = "token-name";
+          tdName.textContent = segments[segments.length - 1];
+          tdName.title = item.name;
+
+          const tdFamily = document.createElement("td");
+          tdFamily.className = "token-value";
+          tdFamily.textContent = item.fontFamily;
+
+          const tdStyle = document.createElement("td");
+          tdStyle.className = "token-value";
+          tdStyle.textContent = item.fontStyle;
+
+          const tdSize = document.createElement("td");
+          tdSize.className = "token-value";
+          tdSize.textContent = `${item.fontSize}px`;
+
+          tr.append(tdName, tdFamily, tdStyle, tdSize);
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        body.appendChild(table);
+      }
+
+      function renderEffectBody(body, items) {
+        const table = document.createElement("table");
+        table.className = "token-table";
+        const thead = document.createElement("thead");
+        const headRow = document.createElement("tr");
+        for (const col of ["Name", "Type", "Value"]) {
+          const th = document.createElement("th");
+          th.textContent = col;
+          headRow.appendChild(th);
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement("tbody");
+        for (const item of items) {
+          const tr = document.createElement("tr");
+          const segments = item.name.split("/");
+
+          const tdName = document.createElement("td");
+          tdName.className = "token-name";
+          tdName.textContent = segments[segments.length - 1];
+          tdName.title = item.name;
+
+          const tdType = document.createElement("td");
+          tdType.className = "token-value";
+          tdType.textContent = item.effectType;
+
+          const tdVal = document.createElement("td");
+          tdVal.className = "token-value";
+          tdVal.textContent = item.preview;
+
+          tr.append(tdName, tdType, tdVal);
+          tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        body.appendChild(table);
       }
 
       // ── GitHub API 헬퍼 ────────────────────────────────────
@@ -1603,7 +1801,7 @@
 
         if (msg.type === "collections-loaded") {
           renderCollections(msg.payload.collections);
-          renderStylesSection(msg.payload.stylesCounts ?? { paint: 0, text: 0, effect: 0 });
+          renderStylesCards(msg.payload.stylesData ?? { paint: [], text: [], effect: [] });
           return;
         }
 

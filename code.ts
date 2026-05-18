@@ -64,6 +64,24 @@ interface StyleFilePayload {
   styleKey: "paint" | "text" | "effect";
 }
 
+interface PaintStylePreview {
+  name: string;
+  color: string;
+}
+
+interface TextStylePreview {
+  name: string;
+  fontFamily: string;
+  fontStyle: string;
+  fontSize: number;
+}
+
+interface EffectStylePreview {
+  name: string;
+  effectType: string;
+  preview: string;
+}
+
 // ── 타입 가드 ─────────────────────────────────────────────
 
 function isDesignToken(node: TokenGroup | DesignToken): node is DesignToken {
@@ -163,6 +181,39 @@ async function sendCollections(): Promise<void> {
       figma.getLocalEffectStylesAsync(),
     ]);
 
+    const paintPreviews: PaintStylePreview[] = paintStyles.flatMap((s) => {
+      const solid = s.paints.find((p): p is SolidPaint => p.type === "SOLID");
+      if (!solid) return [];
+      return [{ name: s.name, color: rgbToCss({ ...solid.color, a: solid.opacity ?? 1 }) }];
+    });
+
+    const textPreviews: TextStylePreview[] = textStyles.map((s) => ({
+      name: s.name,
+      fontFamily: s.fontName.family,
+      fontStyle: s.fontName.style,
+      fontSize: s.fontSize,
+    }));
+
+    const effectPreviews: EffectStylePreview[] = effectStyles.flatMap((s) => {
+      const shadow = s.effects.find(
+        (e): e is DropShadowEffect | InnerShadowEffect =>
+          e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW",
+      );
+      const blur = s.effects.find(
+        (e): e is BlurEffect =>
+          e.type === "LAYER_BLUR" || e.type === "BACKGROUND_BLUR",
+      );
+      if (shadow) {
+        const label = shadow.type === "INNER_SHADOW" ? "Inner Shadow" : "Drop Shadow";
+        return [{ name: s.name, effectType: label, preview: `${shadow.offset.x}px ${shadow.offset.y}px ${shadow.radius}px` }];
+      }
+      if (blur) {
+        const label = blur.type === "BACKGROUND_BLUR" ? "Background Blur" : "Layer Blur";
+        return [{ name: s.name, effectType: label, preview: `${blur.radius}px` }];
+      }
+      return []; // shadow도 blur도 없는 스타일은 미리보기에서 제외
+    });
+
     figma.ui.postMessage({
       type: "collections-loaded",
       payload: {
@@ -171,6 +222,11 @@ async function sendCollections(): Promise<void> {
           paint: paintStyles.length,
           text: textStyles.length,
           effect: effectStyles.length,
+        },
+        stylesData: {
+          paint: paintPreviews,
+          text: textPreviews,
+          effect: effectPreviews,
         },
       },
     });
