@@ -1,4 +1,4 @@
-// VarSync - Figma Variables → GitHub PR Sync Plugin
+// VarSync - Figma Variables & Styles → GitHub PR Sync Plugin
 // docs/01-figma-variables-api.md 참고
 
 figma.showUI(__html__, { width: 392, height: 510 });
@@ -21,8 +21,8 @@ const UI_MAX_HEIGHT = 800;
 // W3C Design Token Community Group 표준 (Style Dictionary v4 호환)
 
 interface DesignToken {
-  value: string | number | boolean;
-  type: "color" | "number" | "string" | "boolean";
+  value: string | number | boolean | Record<string, unknown>;
+  type: "color" | "number" | "string" | "boolean" | "typography" | "shadow" | "blur";
   description?: string;
 }
 
@@ -33,6 +33,17 @@ interface TokenGroup {
 interface CollectionFilePayload {
   collectionName: string;
   tokensJson: string; // JSON.stringify된 TokenGroup
+}
+
+interface StylesInclude {
+  paint: boolean;
+  text: boolean;
+  effect: boolean;
+}
+
+interface StyleFilePayload {
+  fileName: string; // e.g. "styles/colors.json"
+  tokensJson: string;
 }
 
 // ── 타입 가드 ─────────────────────────────────────────────
@@ -49,6 +60,7 @@ type PluginMessage =
       payload: {
         selectedCollectionIds: string[];
         excludedGroups?: Record<string, string[]>;
+        includeStyles?: StylesInclude;
       };
     }
   | { type: "request-collections" }
@@ -127,9 +139,20 @@ async function sendCollections(): Promise<void> {
       };
     });
 
+    const paintStyles = figma.getLocalPaintStyles();
+    const textStyles = figma.getLocalTextStyles();
+    const effectStyles = figma.getLocalEffectStyles();
+
     figma.ui.postMessage({
       type: "collections-loaded",
-      payload: { collections: payload },
+      payload: {
+        collections: payload,
+        stylesCounts: {
+          paint: paintStyles.length,
+          text: textStyles.length,
+          effect: effectStyles.length,
+        },
+      },
     });
   } catch (e) {
     figma.ui.postMessage({
@@ -237,13 +260,14 @@ function formatPreviewValue(
 figma.ui.onmessage = async (msg: PluginMessage) => {
   if (msg.type === "request-variables") {
     try {
-      const files = await buildTokensByCollection(
+      const variableFiles = await buildTokensByCollection(
         msg.payload.selectedCollectionIds,
         msg.payload.excludedGroups ?? {},
       );
+      const styleFiles = await buildStyleFiles(msg.payload.includeStyles ?? { paint: false, text: false, effect: false });
       figma.ui.postMessage({
         type: "variables-data",
-        payload: { files },
+        payload: { files: variableFiles, styleFiles },
       });
     } catch (e) {
       figma.ui.postMessage({
@@ -455,4 +479,117 @@ function setNestedToken(
     node = node[key] as TokenGroup;
   }
   node[path[path.length - 1]] = token;
+}
+
+// ── Styles 추출 함수 ──────────────────────────────────────
+
+async function buildStyleFiles(include: StylesInclude): Promise<StyleFilePayload[]> {
+  const result: StyleFilePayload[] = [];
+
+  if (include.paint) {
+    const tokens = buildPaintTokens();
+    if (Object.keys(tokens).length > 0) {
+      result.push({ fileName: "styles/colors.json", tokensJson: JSON.stringify(tokens, null, 2) });
+    }
+  }
+
+  if (include.text) {
+    const tokens = buildTextTokens();
+    if (Object.keys(tokens).length > 0) {
+      result.push({ fileName: "styles/typography.json", tokensJson: JSON.stringify(tokens, null, 2) });
+    }
+  }
+
+  if (include.effect) {
+    const tokens = buildEffectTokens();
+    if (Object.keys(tokens).length > 0) {
+      result.push({ fileName: "styles/effects.json", tokensJson: JSON.stringify(tokens, null, 2) });
+    }
+  }
+
+  return result;
+}
+
+function buildPaintTokens(): TokenGroup {
+  const root: TokenGroup = {};
+  for (const style of figma.getLocalPaintStyles()) {
+    const solid = style.paints.find((p): p is SolidPaint => p.type === "SOLID");
+    let value: string;
+    if (solid) {
+      value = rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
+    } else {
+      // gradient / image 등은 타입 문자열로 폴백
+      value = style.paints[0]?.type?.toLowerCase() ?? "unknown";
+    }
+    const token: DesignToken = { value, type: "color" };
+    if (style.description) token.description = style.description;
+    setNestedToken(root, style.name.split("/"), token);
+  }
+  return root;
+}
+
+function buildTextTokens(): TokenGroup {
+  const root: TokenGroup = {};
+  for (const style of figma.getLocalTextStyles()) {
+    const lh = style.lineHeight;
+    const ls = style.letterSpacing;
+
+    const value: Record<string, unknown> = {
+      fontFamily: style.fontName.family,
+      fontStyle: style.fontName.style,
+      fontSize: style.fontSize,
+      letterSpacing:
+        ls.unit === "PERCENT"
+          ? `${ls.value}%`
+          : ls.unit === "PIXELS"
+            ? ls.value
+            : 0,
+      lineHeight:
+        lh.unit === "AUTO"
+          ? "auto"
+          : lh.unit === "PERCENT"
+            ? `${lh.value}%`
+            : lh.value,
+    };
+
+    const token: DesignToken = { value, type: "typography" };
+    if (style.description) token.description = style.description;
+    setNestedToken(root, style.name.split("/"), token);
+  }
+  return root;
+}
+
+function buildEffectTokens(): TokenGroup {
+  const root: TokenGroup = {};
+  for (const style of figma.getLocalEffectStyles()) {
+    const shadows = style.effects.filter(
+      (e): e is DropShadowEffect | InnerShadowEffect =>
+        e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW",
+    );
+    const blurs = style.effects.filter(
+      (e): e is BlurEffect => e.type === "LAYER_BLUR" || e.type === "BACKGROUND_BLUR",
+    );
+
+    let token: DesignToken | null = null;
+
+    if (shadows.length > 0) {
+      const s = shadows[0];
+      const value: Record<string, unknown> = {
+        type: s.type === "INNER_SHADOW" ? "inset" : "drop",
+        color: rgbToCss(s.color),
+        offsetX: s.offset.x,
+        offsetY: s.offset.y,
+        blur: s.radius,
+        spread: "spread" in s ? s.spread : 0,
+      };
+      token = { value, type: "shadow" };
+    } else if (blurs.length > 0) {
+      token = { value: blurs[0].radius, type: "blur" };
+    }
+
+    if (!token) continue;
+    if (style.description) token.description = style.description;
+    setNestedToken(root, style.name.split("/"), token);
+  }
+  return root;
 }
