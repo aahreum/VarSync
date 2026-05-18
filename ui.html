@@ -1598,7 +1598,6 @@
       // event.source가 null일 수 있어 window.parent 비교가 메시지를 차단함.
       // pluginMessage 키 존재 여부가 Figma 메시지를 식별하기에 충분.
       window.addEventListener("message", async (event) => {
-        try {
         const msg = event.data && event.data.pluginMessage;
         if (!msg) return;
 
@@ -1781,11 +1780,6 @@
         if (msg.type === "error") {
           pendingSyncParams = null;
           setStatus("error", [`플러그인 오류: ${msg.message}`]);
-          setLoading(false);
-        }
-        } catch (e) {
-          pendingSyncParams = null;
-          setStatus("error", [`예기치 않은 오류: ${e.message}`]);
           setLoading(false);
         }
       });
