@@ -20,8 +20,25 @@ const UI_MAX_HEIGHT = 800;
 // ── DTCG 타입 정의 ────────────────────────────────────────
 // W3C Design Token Community Group 표준 (Style Dictionary v4 호환)
 
+interface TypographyValue {
+  fontFamily: string;
+  fontStyle: string;
+  fontSize: number;
+  letterSpacing: string | number;
+  lineHeight: string | number;
+}
+
+interface ShadowValue {
+  type: "drop" | "inset";
+  color: string;
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  spread: number;
+}
+
 interface DesignToken {
-  value: string | number | boolean | Record<string, unknown>;
+  value: string | number | boolean | TypographyValue | ShadowValue;
   type: "color" | "number" | "string" | "boolean" | "typography" | "shadow" | "blur";
   description?: string;
 }
@@ -264,7 +281,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
         msg.payload.selectedCollectionIds,
         msg.payload.excludedGroups ?? {},
       );
-      const styleFiles = await buildStyleFiles(msg.payload.includeStyles ?? { paint: false, text: false, effect: false });
+      const styleFiles = buildStyleFiles(msg.payload.includeStyles ?? { paint: false, text: false, effect: false });
       figma.ui.postMessage({
         type: "variables-data",
         payload: { files: variableFiles, styleFiles },
@@ -483,7 +500,7 @@ function setNestedToken(
 
 // ── Styles 추출 함수 ──────────────────────────────────────
 
-async function buildStyleFiles(include: StylesInclude): Promise<StyleFilePayload[]> {
+function buildStyleFiles(include: StylesInclude): StyleFilePayload[] {
   const result: StyleFilePayload[] = [];
 
   if (include.paint) {
@@ -514,14 +531,16 @@ function buildPaintTokens(): TokenGroup {
   const root: TokenGroup = {};
   for (const style of figma.getLocalPaintStyles()) {
     const solid = style.paints.find((p): p is SolidPaint => p.type === "SOLID");
-    let value: string;
-    if (solid) {
-      value = rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
-    } else {
-      // gradient / image 등은 타입 문자열로 폴백
-      value = style.paints[0]?.type?.toLowerCase() ?? "unknown";
+    if (!solid) {
+      console.warn(
+        `[VarSync] Paint style "${style.name}" skipped — type "${style.paints[0]?.type ?? "empty"}" is not SOLID`,
+      );
+      continue;
     }
-    const token: DesignToken = { value, type: "color" };
+    const token: DesignToken = {
+      value: rgbToCss({ ...solid.color, a: solid.opacity ?? 1 }),
+      type: "color",
+    };
     if (style.description) token.description = style.description;
     setNestedToken(root, style.name.split("/"), token);
   }
@@ -534,16 +553,21 @@ function buildTextTokens(): TokenGroup {
     const lh = style.lineHeight;
     const ls = style.letterSpacing;
 
-    const value: Record<string, unknown> = {
+    let letterSpacing: string | number;
+    if (ls.unit === "PERCENT") {
+      letterSpacing = `${ls.value}%`;
+    } else if (ls.unit === "PIXELS") {
+      letterSpacing = ls.value;
+    } else {
+      console.warn(`[VarSync] Text style "${style.name}" has unexpected letterSpacing unit — defaulting to 0`);
+      letterSpacing = 0;
+    }
+
+    const value: TypographyValue = {
       fontFamily: style.fontName.family,
       fontStyle: style.fontName.style,
       fontSize: style.fontSize,
-      letterSpacing:
-        ls.unit === "PERCENT"
-          ? `${ls.value}%`
-          : ls.unit === "PIXELS"
-            ? ls.value
-            : 0,
+      letterSpacing,
       lineHeight:
         lh.unit === "AUTO"
           ? "auto"
@@ -562,29 +586,39 @@ function buildTextTokens(): TokenGroup {
 function buildEffectTokens(): TokenGroup {
   const root: TokenGroup = {};
   for (const style of figma.getLocalEffectStyles()) {
-    const shadows = style.effects.filter(
+    const shadowEffects = style.effects.filter(
       (e): e is DropShadowEffect | InnerShadowEffect =>
         e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW",
     );
-    const blurs = style.effects.filter(
+    const blurEffects = style.effects.filter(
       (e): e is BlurEffect => e.type === "LAYER_BLUR" || e.type === "BACKGROUND_BLUR",
     );
 
     let token: DesignToken | null = null;
 
-    if (shadows.length > 0) {
-      const s = shadows[0];
-      const value: Record<string, unknown> = {
+    if (shadowEffects.length > 0) {
+      if (blurEffects.length > 0) {
+        console.warn(
+          `[VarSync] Effect style "${style.name}" has both shadow and blur — only shadow is exported`,
+        );
+      }
+      const s = shadowEffects[0];
+      const { r, g, b, a } = s.color;
+      const cr = Math.round(r * 255);
+      const cg = Math.round(g * 255);
+      const cb = Math.round(b * 255);
+      const ca = Math.round(a * 1000) / 1000;
+      const value: ShadowValue = {
         type: s.type === "INNER_SHADOW" ? "inset" : "drop",
-        color: rgbToCss(s.color),
+        color: `rgba(${cr}, ${cg}, ${cb}, ${ca})`,
         offsetX: s.offset.x,
         offsetY: s.offset.y,
         blur: s.radius,
-        spread: "spread" in s ? s.spread : 0,
+        spread: ("spread" in s ? s.spread : undefined) ?? 0,
       };
       token = { value, type: "shadow" };
-    } else if (blurs.length > 0) {
-      token = { value: blurs[0].radius, type: "blur" };
+    } else if (blurEffects.length > 0) {
+      token = { value: blurEffects[0].radius, type: "blur" };
     }
 
     if (!token) continue;
