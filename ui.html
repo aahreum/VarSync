@@ -793,12 +793,11 @@
 
         if (styleFiles.length > 0) {
           lines.push("### Styles", "");
-          const fileLabels = { "colors.json": "Colors (Paint)", "typography.json": "Typography (Text)", "effects.json": "Effects" };
+          const keyLabels = { paint: "Colors (Paint)", text: "Typography (Text)", effect: "Effects" };
           for (const sf of styleFiles) {
-            const fileName = sf.fileName.split("/").pop();
             const tokens = JSON.parse(sf.tokensJson);
             const count = Object.values(countTokensByType(tokens)).reduce((a, b) => a + b, 0);
-            lines.push(`- ${fileLabels[fileName] ?? fileName}: ${count}건`);
+            lines.push(`- ${keyLabels[sf.styleKey] ?? sf.fileName}: ${count}건`);
           }
           lines.push("");
         }
@@ -941,6 +940,7 @@
 
       /** 상태 메시지를 DOM으로 안전하게 렌더링 (innerHTML 미사용 — XSS 방지) */
       function setStatus(type, lines, link = null) {
+        lines = lines.filter(Boolean);
         const el = document.getElementById("status");
         el.style.display = ""; // 인라인 display 초기화 — CSS 클래스가 제어하도록
         el.className = type;
@@ -1264,19 +1264,29 @@
       function renderStylesSection(stylesCounts) {
         const section = document.getElementById("styles-section");
         const list = document.getElementById("styles-list");
+
+        // 재렌더링 전 체크 상태 저장 (Step 1 → Step 2 재진입 시 초기화 방지)
+        const prevChecked = {};
+        list.querySelectorAll("[data-style-key]").forEach((el) => {
+          prevChecked[el.dataset.styleKey] = el.checked;
+        });
+
         list.textContent = "";
 
-        const total = stylesCounts.paint + stylesCounts.text + stylesCounts.effect;
-        if (total === 0) {
+        const paint = stylesCounts.paint ?? 0;
+        const text = stylesCounts.text ?? 0;
+        const effect = stylesCounts.effect ?? 0;
+
+        if (paint + text + effect === 0) {
           section.hidden = true;
           return;
         }
         section.hidden = false;
 
         const entries = [
-          { key: "paint", label: "Colors (Paint Styles)", count: stylesCounts.paint },
-          { key: "text", label: "Typography (Text Styles)", count: stylesCounts.text },
-          { key: "effect", label: "Effects", count: stylesCounts.effect },
+          { key: "paint", label: "Colors (Paint Styles)", count: paint },
+          { key: "text", label: "Typography (Text Styles)", count: text },
+          { key: "effect", label: "Effects", count: effect },
         ];
 
         for (const { key, label, count } of entries) {
@@ -1288,7 +1298,7 @@
           chk.type = "checkbox";
           chk.id = `chk-style-${key}`;
           chk.dataset.styleKey = key;
-          chk.checked = true;
+          chk.checked = prevChecked[key] ?? true; // 이전 상태 복원, 최초엔 true
           chk.addEventListener("change", updateSyncBtn);
 
           const nameSpan = document.createElement("span");
@@ -1388,6 +1398,20 @@
             }),
           },
         );
+
+        if (res.status === 422) {
+          // 동일 브랜치의 PR이 이미 존재 — 기존 PR URL을 찾아 반환
+          const existingRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/pulls?head=${encodeURIComponent(`${owner}:${head}`)}&state=open`,
+            { headers: githubHeaders(token) },
+          );
+          if (existingRes.ok) {
+            const prs = await existingRes.json();
+            if (prs.length > 0) return prs[0].html_url;
+          }
+          throw new Error(`"${head}" 브랜치의 PR이 이미 존재합니다. GitHub에서 확인해주세요.`);
+        }
+
         if (!res.ok) throw new Error(`PR 생성 실패 (${res.status})`);
         const data = await res.json();
         return data.html_url;
@@ -1574,6 +1598,7 @@
       // event.source가 null일 수 있어 window.parent 비교가 메시지를 차단함.
       // pluginMessage 키 존재 여부가 Figma 메시지를 식별하기에 충분.
       window.addEventListener("message", async (event) => {
+        try {
         const msg = event.data && event.data.pluginMessage;
         if (!msg) return;
 
@@ -1672,59 +1697,64 @@
             const encodeRepoPath = (p) =>
               p.split("/").map(encodeURIComponent).join("/");
 
-            // Variables: 파일명 중복 시 접미사 부여
-            const filePaths = [];
-            const usedNames = {};
-            for (const f of files) {
-              let base = toKebabCase(f.collectionName);
-              if (usedNames[base] != null) {
-                usedNames[base]++;
-                base = `${base}-${usedNames[base]}`;
-              } else {
-                usedNames[base] = 0;
+            // Variables: 파일명 중복 시 접미사 부여 후 순차 커밋
+            if (files.length > 0) {
+              const filePaths = [];
+              const usedNames = {};
+              for (const f of files) {
+                let base = toKebabCase(f.collectionName);
+                if (usedNames[base] != null) {
+                  usedNames[base]++;
+                  base = `${base}-${usedNames[base]}`;
+                } else {
+                  usedNames[base] = 0;
+                }
+                filePaths.push(`${folderPath}/${base}.json`);
               }
-              filePaths.push(`${folderPath}/${base}.json`);
+              const encodedFilePaths = filePaths.map(encodeRepoPath);
+              const existingShas = await Promise.all(
+                encodedFilePaths.map((path) =>
+                  getFileSha(owner, repo, path, newBranch, token),
+                ),
+              );
+              for (let i = 0; i < files.length; i++) {
+                const { collectionName, tokensJson } = files[i];
+                await putFile(
+                  owner,
+                  repo,
+                  encodedFilePaths[i],
+                  tokensJson,
+                  `chore: sync "${collectionName}" tokens from Figma`,
+                  newBranch,
+                  token,
+                  existingShas[i],
+                );
+              }
             }
 
-            const encodedFilePaths = filePaths.map(encodeRepoPath);
-
-            // Variables: 기존 파일 SHA 병렬 조회
-            const existingShas = await Promise.all(
-              encodedFilePaths.map((path) =>
-                getFileSha(owner, repo, path, newBranch, token),
-              ),
-            );
-
-            // Variables: 컬렉션별 순차 커밋
-            for (let i = 0; i < files.length; i++) {
-              const { collectionName, tokensJson } = files[i];
-              await putFile(
-                owner,
-                repo,
-                encodedFilePaths[i],
-                tokensJson,
-                `chore: sync "${collectionName}" tokens from Figma`,
-                newBranch,
-                token,
-                existingShas[i],
+            // Styles: SHA 병렬 조회 후 순차 커밋 (Variables 패턴과 동일)
+            if (styleFiles.length > 0) {
+              const styleEncodedPaths = styleFiles.map((sf) =>
+                encodeRepoPath(`${folderPath}/${sf.fileName}`),
               );
-            }
-
-            // Styles: folderPath 아래에 styles/ 서브디렉터리로 커밋
-            for (const sf of styleFiles) {
-              const fullPath = `${folderPath}/${sf.fileName}`;
-              const encodedPath = encodeRepoPath(fullPath);
-              const existingSha = await getFileSha(owner, repo, encodedPath, newBranch, token);
-              await putFile(
-                owner,
-                repo,
-                encodedPath,
-                sf.tokensJson,
-                `chore: sync styles (${sf.fileName.split("/").pop()}) from Figma`,
-                newBranch,
-                token,
-                existingSha,
+              const styleExistingShas = await Promise.all(
+                styleEncodedPaths.map((path) =>
+                  getFileSha(owner, repo, path, newBranch, token),
+                ),
               );
+              for (let i = 0; i < styleFiles.length; i++) {
+                const sf = styleFiles[i];
+                await putFile(
+                  owner,
+                  repo,
+                  styleEncodedPaths[i],
+                  sf.tokensJson,
+                  `chore: sync styles (${sf.fileName.split("/").pop()}) from Figma`,
+                  newBranch,
+                  token,
+                  styleExistingShas[i],
+                );
+              }
             }
 
             setStatus("info", ["PR 생성 중..."]);
@@ -1751,6 +1781,11 @@
         if (msg.type === "error") {
           pendingSyncParams = null;
           setStatus("error", [`플러그인 오류: ${msg.message}`]);
+          setLoading(false);
+        }
+        } catch (e) {
+          pendingSyncParams = null;
+          setStatus("error", [`예기치 않은 오류: ${e.message}`]);
           setLoading(false);
         }
       });

@@ -61,6 +61,7 @@ interface StylesInclude {
 interface StyleFilePayload {
   fileName: string; // e.g. "styles/colors.json"
   tokensJson: string;
+  styleKey: "paint" | "text" | "effect";
 }
 
 // ── 타입 가드 ─────────────────────────────────────────────
@@ -506,21 +507,21 @@ function buildStyleFiles(include: StylesInclude): StyleFilePayload[] {
   if (include.paint) {
     const tokens = buildPaintTokens();
     if (Object.keys(tokens).length > 0) {
-      result.push({ fileName: "styles/colors.json", tokensJson: JSON.stringify(tokens, null, 2) });
+      result.push({ fileName: "styles/colors.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "paint" });
     }
   }
 
   if (include.text) {
     const tokens = buildTextTokens();
     if (Object.keys(tokens).length > 0) {
-      result.push({ fileName: "styles/typography.json", tokensJson: JSON.stringify(tokens, null, 2) });
+      result.push({ fileName: "styles/typography.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "text" });
     }
   }
 
   if (include.effect) {
     const tokens = buildEffectTokens();
     if (Object.keys(tokens).length > 0) {
-      result.push({ fileName: "styles/effects.json", tokensJson: JSON.stringify(tokens, null, 2) });
+      result.push({ fileName: "styles/effects.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "effect" });
     }
   }
 
