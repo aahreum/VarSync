@@ -541,7 +541,6 @@
       }
 
       button {
-        flex: 1;
         height: 32px;
         border: none;
         border-radius: 6px;
@@ -551,6 +550,10 @@
         transition:
           background 0.15s,
           opacity 0.15s;
+      }
+
+      .btn-row button {
+        flex: 1;
       }
 
       button:disabled {
@@ -633,14 +636,12 @@
       .tab:hover {
         color: #333;
         background: transparent;
-        opacity: 1;
       }
 
       .tab.active {
         color: #18a0fb;
         border-bottom-color: #18a0fb;
         background: transparent;
-        opacity: 1;
       }
 
       #panel-variables,
@@ -1301,7 +1302,10 @@
       }
 
       // ── 탭 전환 ─────────────────────────────────────────────
+      let activeTab = "variables";
+
       function activateTab(tabName) {
+        activeTab = tabName;
         const isVariables = tabName === "variables";
         document.getElementById("panel-variables").hidden = !isVariables;
         document.getElementById("panel-styles").hidden = isVariables;
@@ -1333,6 +1337,7 @@
           msg.style.cssText = "font-size:11px;color:#888;display:block;padding:8px 0;";
           msg.textContent = "Styles가 없습니다.";
           container.appendChild(msg);
+          activateTab(activeTab);
           updateSyncBtn();
           return;
         }
@@ -1395,6 +1400,7 @@
           container.appendChild(card);
         }
 
+        activateTab(activeTab);
         updateSyncBtn();
       }
 

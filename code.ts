@@ -181,12 +181,11 @@ async function sendCollections(): Promise<void> {
       figma.getLocalEffectStylesAsync(),
     ]);
 
-    const paintPreviews: PaintStylePreview[] = paintStyles
-      .filter((s) => s.paints.some((p) => p.type === "SOLID"))
-      .map((s) => {
-        const solid = s.paints.find((p): p is SolidPaint => p.type === "SOLID")!;
-        return { name: s.name, color: rgbToCss({ ...solid.color, a: solid.opacity ?? 1 }) };
-      });
+    const paintPreviews: PaintStylePreview[] = paintStyles.flatMap((s) => {
+      const solid = s.paints.find((p): p is SolidPaint => p.type === "SOLID");
+      if (!solid) return [];
+      return [{ name: s.name, color: rgbToCss({ ...solid.color, a: solid.opacity ?? 1 }) }];
+    });
 
     const textPreviews: TextStylePreview[] = textStyles.map((s) => ({
       name: s.name,
@@ -195,7 +194,7 @@ async function sendCollections(): Promise<void> {
       fontSize: s.fontSize,
     }));
 
-    const effectPreviews: EffectStylePreview[] = effectStyles.map((s) => {
+    const effectPreviews: EffectStylePreview[] = effectStyles.flatMap((s) => {
       const shadow = s.effects.find(
         (e): e is DropShadowEffect | InnerShadowEffect =>
           e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW",
@@ -206,13 +205,13 @@ async function sendCollections(): Promise<void> {
       );
       if (shadow) {
         const label = shadow.type === "INNER_SHADOW" ? "Inner Shadow" : "Drop Shadow";
-        return { name: s.name, effectType: label, preview: `${shadow.offset.x}px ${shadow.offset.y}px ${shadow.radius}px` };
+        return [{ name: s.name, effectType: label, preview: `${shadow.offset.x}px ${shadow.offset.y}px ${shadow.radius}px` }];
       }
       if (blur) {
         const label = blur.type === "BACKGROUND_BLUR" ? "Background Blur" : "Layer Blur";
-        return { name: s.name, effectType: label, preview: `${blur.radius}px` };
+        return [{ name: s.name, effectType: label, preview: `${blur.radius}px` }];
       }
-      return { name: s.name, effectType: "Unknown", preview: "" };
+      return []; // shadow도 blur도 없는 스타일은 미리보기에서 제외
     });
 
     figma.ui.postMessage({
