@@ -157,9 +157,11 @@ async function sendCollections(): Promise<void> {
       };
     });
 
-    const paintStyles = figma.getLocalPaintStyles();
-    const textStyles = figma.getLocalTextStyles();
-    const effectStyles = figma.getLocalEffectStyles();
+    const [paintStyles, textStyles, effectStyles] = await Promise.all([
+      figma.getLocalPaintStylesAsync(),
+      figma.getLocalTextStylesAsync(),
+      figma.getLocalEffectStylesAsync(),
+    ]);
 
     figma.ui.postMessage({
       type: "collections-loaded",
@@ -282,7 +284,7 @@ figma.ui.onmessage = async (msg: PluginMessage) => {
         msg.payload.selectedCollectionIds,
         msg.payload.excludedGroups ?? {},
       );
-      const styleFiles = buildStyleFiles(msg.payload.includeStyles ?? { paint: false, text: false, effect: false });
+      const styleFiles = await buildStyleFiles(msg.payload.includeStyles ?? { paint: false, text: false, effect: false });
       figma.ui.postMessage({
         type: "variables-data",
         payload: { files: variableFiles, styleFiles },
@@ -501,25 +503,25 @@ function setNestedToken(
 
 // ── Styles 추출 함수 ──────────────────────────────────────
 
-function buildStyleFiles(include: StylesInclude): StyleFilePayload[] {
+async function buildStyleFiles(include: StylesInclude): Promise<StyleFilePayload[]> {
   const result: StyleFilePayload[] = [];
 
   if (include.paint) {
-    const tokens = buildPaintTokens();
+    const tokens = await buildPaintTokens();
     if (Object.keys(tokens).length > 0) {
       result.push({ fileName: "styles/colors.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "paint" });
     }
   }
 
   if (include.text) {
-    const tokens = buildTextTokens();
+    const tokens = await buildTextTokens();
     if (Object.keys(tokens).length > 0) {
       result.push({ fileName: "styles/typography.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "text" });
     }
   }
 
   if (include.effect) {
-    const tokens = buildEffectTokens();
+    const tokens = await buildEffectTokens();
     if (Object.keys(tokens).length > 0) {
       result.push({ fileName: "styles/effects.json", tokensJson: JSON.stringify(tokens, null, 2), styleKey: "effect" });
     }
@@ -528,9 +530,9 @@ function buildStyleFiles(include: StylesInclude): StyleFilePayload[] {
   return result;
 }
 
-function buildPaintTokens(): TokenGroup {
+async function buildPaintTokens(): Promise<TokenGroup> {
   const root: TokenGroup = {};
-  for (const style of figma.getLocalPaintStyles()) {
+  for (const style of await figma.getLocalPaintStylesAsync()) {
     const solid = style.paints.find((p): p is SolidPaint => p.type === "SOLID");
     if (!solid) {
       console.warn(
@@ -548,9 +550,9 @@ function buildPaintTokens(): TokenGroup {
   return root;
 }
 
-function buildTextTokens(): TokenGroup {
+async function buildTextTokens(): Promise<TokenGroup> {
   const root: TokenGroup = {};
-  for (const style of figma.getLocalTextStyles()) {
+  for (const style of await figma.getLocalTextStylesAsync()) {
     const lh = style.lineHeight;
     const ls = style.letterSpacing;
 
@@ -584,9 +586,9 @@ function buildTextTokens(): TokenGroup {
   return root;
 }
 
-function buildEffectTokens(): TokenGroup {
+async function buildEffectTokens(): Promise<TokenGroup> {
   const root: TokenGroup = {};
-  for (const style of figma.getLocalEffectStyles()) {
+  for (const style of await figma.getLocalEffectStylesAsync()) {
     const shadowEffects = style.effects.filter(
       (e): e is DropShadowEffect | InnerShadowEffect =>
         e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW",
