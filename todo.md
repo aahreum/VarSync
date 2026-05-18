@@ -53,8 +53,8 @@ Figma Styles API:
 
 ## Phase 5: 버전 업 및 배포
 
-- [ ] `package.json` version → `1.1.0` 으로 bump
-- [ ] `npm run build`로 `code.js` 재빌드
+- [x] `package.json` version → `1.1.0` 으로 bump
+- [x] `npm run build`로 `code.js` 재빌드
 - [ ] Figma 데스크탑 앱 > 플러그인 우클릭 > **Publish new version**
   - 릴리즈 노트 예시: "✨ Figma Styles(Color/Typography/Effect) GitHub 동기화 지원"
 
