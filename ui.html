@@ -1419,7 +1419,7 @@
           const label = document.createElement("div");
           label.className = "color-chip-label";
           const segments = item.name.split("/");
-          label.textContent = segments[segments.length - 1];
+          label.textContent = segments.length > 1 ? segments.slice(1).join("-") : segments[0];
 
           const val = document.createElement("div");
           val.className = "color-chip-value";
@@ -1453,7 +1453,7 @@
 
           const tdName = document.createElement("td");
           tdName.className = "token-name";
-          tdName.textContent = segments[segments.length - 1];
+          tdName.textContent = segments.length > 1 ? segments.slice(1).join("-") : segments[0];
           tdName.title = item.name;
 
           const tdFamily = document.createElement("td");
@@ -1495,7 +1495,7 @@
 
           const tdName = document.createElement("td");
           tdName.className = "token-name";
-          tdName.textContent = segments[segments.length - 1];
+          tdName.textContent = segments.length > 1 ? segments.slice(1).join("-") : segments[0];
           tdName.title = item.name;
 
           const tdType = document.createElement("td");
