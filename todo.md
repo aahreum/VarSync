@@ -1,5 +1,11 @@
 # VarSync v1.1 - Figma Styles → GitHub Sync
 
+## Bug Fixes: Style Object (code.ts)
+
+- [x] **[Bug] Style 이름 풀패스 표시** — `typo/heading/xl` → `{ typo: { "heading-xl": {...} } }` (첫 세그먼트 = 그룹키, 나머지를 `-`로 이어붙임)
+- [x] **[Bug] lineHeight 부동소수점** — `139.9999976158142%` → `toPrecision(6)` 적용으로 `140%`로 정리
+- [x] **[Bug] Style 속성 Variables 참조** — `fontSize: 48` 대신 `{font.size.48}` — `style.boundVariables` / `solid.boundVariables` 확인 후 variable ref 우선 출력
+
 ## 배경 (Context)
 
 v1.0에서 Variables(변수) 동기화는 완성됨.

@@ -21,9 +21,9 @@ const UI_MAX_HEIGHT = 800;
 // W3C Design Token Community Group 표준 (Style Dictionary v4 호환)
 
 interface TypographyValue {
-  fontFamily: string;
-  fontStyle: string;
-  fontSize: number;
+  fontFamily: string | number;
+  fontStyle: string | number;
+  fontSize: string | number;
   letterSpacing: string | number;
   lineHeight: string | number;
 }
@@ -557,6 +557,14 @@ function setNestedToken(
   node[path[path.length - 1]] = token;
 }
 
+// ── 스타일 이름 경로 헬퍼 ─────────────────────────────────
+// "typo/heading/xl" → ["typo", "heading-xl"]  (첫 세그먼트 = 그룹, 나머지는 "-" 결합)
+function toStylePath(name: string): string[] {
+  const parts = name.split("/");
+  if (parts.length <= 1) return parts;
+  return [parts[0], parts.slice(1).join("-")];
+}
+
 // ── Styles 추출 함수 ──────────────────────────────────────
 
 async function buildStyleFiles(include: StylesInclude): Promise<StyleFilePayload[]> {
@@ -588,6 +596,11 @@ async function buildStyleFiles(include: StylesInclude): Promise<StyleFilePayload
 
 async function buildPaintTokens(): Promise<TokenGroup> {
   const root: TokenGroup = {};
+
+  const allVariables = await figma.variables.getLocalVariablesAsync();
+  const idToPath: Record<string, string[]> = {};
+  for (const v of allVariables) idToPath[v.id] = v.name.split("/");
+
   for (const style of await figma.getLocalPaintStylesAsync()) {
     const solid = style.paints.find((p): p is SolidPaint => p.type === "SOLID");
     if (!solid) {
@@ -596,48 +609,79 @@ async function buildPaintTokens(): Promise<TokenGroup> {
       );
       continue;
     }
-    const token: DesignToken = {
-      value: rgbToCss({ ...solid.color, a: solid.opacity ?? 1 }),
-      type: "color",
-    };
+
+    const colorAlias = (solid.boundVariables as Record<string, VariableAlias | undefined> | undefined)?.["color"];
+    let colorValue: string;
+    if (colorAlias?.type === "VARIABLE_ALIAS") {
+      const path = idToPath[colorAlias.id];
+      colorValue = path ? `{${path.join(".")}}` : rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
+    } else {
+      colorValue = rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
+    }
+
+    const token: DesignToken = { value: colorValue, type: "color" };
     if (style.description) token.description = style.description;
-    setNestedToken(root, style.name.split("/"), token);
+    setNestedToken(root, toStylePath(style.name), token);
   }
   return root;
 }
 
 async function buildTextTokens(): Promise<TokenGroup> {
   const root: TokenGroup = {};
+
+  const allVariables = await figma.variables.getLocalVariablesAsync();
+  const idToPath: Record<string, string[]> = {};
+  for (const v of allVariables) idToPath[v.id] = v.name.split("/");
+
+  const varRef = (alias: VariableAlias | undefined): string | undefined => {
+    if (alias?.type !== "VARIABLE_ALIAS") return undefined;
+    const path = idToPath[alias.id];
+    return path ? `{${path.join(".")}}` : undefined;
+  };
+
   for (const style of await figma.getLocalTextStylesAsync()) {
     const lh = style.lineHeight;
     const ls = style.letterSpacing;
+    const bound = (style.boundVariables ?? {}) as Record<string, VariableAlias | undefined>;
 
+    // letterSpacing: variable ref 우선, 없으면 raw (부동소수점 보정)
     let letterSpacing: string | number;
-    if (ls.unit === "PERCENT") {
-      letterSpacing = `${ls.value}%`;
+    const lsRef = varRef(bound["letterSpacing"]);
+    if (lsRef) {
+      letterSpacing = lsRef;
+    } else if (ls.unit === "PERCENT") {
+      letterSpacing = `${parseFloat(ls.value.toPrecision(6))}%`;
     } else if (ls.unit === "PIXELS") {
-      letterSpacing = ls.value;
+      letterSpacing = parseFloat(ls.value.toPrecision(6));
     } else {
       console.warn(`[VarSync] Text style "${style.name}" has unexpected letterSpacing unit — defaulting to 0`);
       letterSpacing = 0;
     }
 
+    // lineHeight: variable ref 우선, 없으면 raw (부동소수점 보정)
+    let lineHeightValue: string | number;
+    const lhRef = varRef(bound["lineHeight"]);
+    if (lhRef) {
+      lineHeightValue = lhRef;
+    } else if (lh.unit === "AUTO") {
+      lineHeightValue = "auto";
+    } else if (lh.unit === "PERCENT") {
+      lineHeightValue = `${parseFloat(lh.value.toPrecision(6))}%`;
+    } else {
+      lineHeightValue = parseFloat(lh.value.toPrecision(6));
+    }
+
     const value: TypographyValue = {
-      fontFamily: style.fontName.family,
-      fontStyle: style.fontName.style,
-      fontSize: style.fontSize,
+      fontFamily: varRef(bound["fontFamily"]) ?? style.fontName.family,
+      fontStyle: varRef(bound["fontStyle"]) ?? style.fontName.style,
+      fontSize: varRef(bound["fontSize"]) ?? style.fontSize,
       letterSpacing,
-      lineHeight:
-        lh.unit === "AUTO"
-          ? "auto"
-          : lh.unit === "PERCENT"
-            ? `${lh.value}%`
-            : lh.value,
+      lineHeight: lineHeightValue,
     };
 
     const token: DesignToken = { value, type: "typography" };
     if (style.description) token.description = style.description;
-    setNestedToken(root, style.name.split("/"), token);
+    setNestedToken(root, toStylePath(style.name), token);
   }
   return root;
 }
@@ -682,7 +726,7 @@ async function buildEffectTokens(): Promise<TokenGroup> {
 
     if (!token) continue;
     if (style.description) token.description = style.description;
-    setNestedToken(root, style.name.split("/"), token);
+    setNestedToken(root, toStylePath(style.name), token);
   }
   return root;
 }
