@@ -64,6 +64,14 @@ npm run build
 
 ## Changelog
 
+### v1.1.2
+- 라이브러리 변수 바인딩 시 raw value로 출력되던 버그 수정 — `getVariableByIdAsync` fallback으로 외부 컬렉션 변수도 `{path.to.variable}` 참조 형태로 출력
+
+### v1.1.1
+- Style 이름 풀패스 표시 — `heading/xl` → `heading-xl` (기존: `xl`만 표시)
+- lineHeight 부동소수점 오류 수정 — `139.9999976158142%` → `140%`
+- Variables 참조 속성이 raw value로 출력되던 문제 수정 — 바인딩된 변수 있으면 `{font.size.48}` 형태로 출력
+
 ### v1.1.0
 - Figma Styles(Paint/Text/Effect) GitHub 동기화 지원
 - Step 2에 Variables / Styles 탭 전환 UI 추가
