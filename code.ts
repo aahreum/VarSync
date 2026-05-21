@@ -557,6 +557,28 @@ function setNestedToken(
   node[path[path.length - 1]] = token;
 }
 
+// ── Variable 참조 resolver ────────────────────────────────
+// getLocalVariablesAsync()는 로컬만 반환하므로, 라이브러리 변수는
+// getVariableByIdAsync()로 fallback 조회한다. idToPath에 캐시.
+function makeVarRefResolver(idToPath: Record<string, string[]>) {
+  return async (alias: VariableAlias | undefined): Promise<string | undefined> => {
+    if (alias?.type !== "VARIABLE_ALIAS") return undefined;
+    let path = idToPath[alias.id];
+    if (!path) {
+      try {
+        const v = await figma.variables.getVariableByIdAsync(alias.id);
+        if (v) {
+          path = v.name.split("/");
+          idToPath[v.id] = path;
+        }
+      } catch (_e) {
+        // 접근 불가 변수는 무시
+      }
+    }
+    return path ? `{${path.join(".")}}` : undefined;
+  };
+}
+
 // ── 스타일 이름 경로 헬퍼 ─────────────────────────────────
 // "typo/heading/xl" → ["typo", "heading-xl"]  (첫 세그먼트 = 그룹, 나머지는 "-" 결합)
 function toStylePath(name: string): string[] {
@@ -600,6 +622,7 @@ async function buildPaintTokens(): Promise<TokenGroup> {
   const allVariables = await figma.variables.getLocalVariablesAsync();
   const idToPath: Record<string, string[]> = {};
   for (const v of allVariables) idToPath[v.id] = v.name.split("/");
+  const resolveRef = makeVarRefResolver(idToPath);
 
   for (const style of await figma.getLocalPaintStylesAsync()) {
     const solid = style.paints.find((p): p is SolidPaint => p.type === "SOLID");
@@ -611,13 +634,8 @@ async function buildPaintTokens(): Promise<TokenGroup> {
     }
 
     const colorAlias = (solid.boundVariables as Record<string, VariableAlias | undefined> | undefined)?.["color"];
-    let colorValue: string;
-    if (colorAlias?.type === "VARIABLE_ALIAS") {
-      const path = idToPath[colorAlias.id];
-      colorValue = path ? `{${path.join(".")}}` : rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
-    } else {
-      colorValue = rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
-    }
+    const colorRef = await resolveRef(colorAlias);
+    const colorValue = colorRef ?? rgbToCss({ ...solid.color, a: solid.opacity ?? 1 });
 
     const token: DesignToken = { value: colorValue, type: "color" };
     if (style.description) token.description = style.description;
@@ -632,21 +650,23 @@ async function buildTextTokens(): Promise<TokenGroup> {
   const allVariables = await figma.variables.getLocalVariablesAsync();
   const idToPath: Record<string, string[]> = {};
   for (const v of allVariables) idToPath[v.id] = v.name.split("/");
-
-  const varRef = (alias: VariableAlias | undefined): string | undefined => {
-    if (alias?.type !== "VARIABLE_ALIAS") return undefined;
-    const path = idToPath[alias.id];
-    return path ? `{${path.join(".")}}` : undefined;
-  };
+  const resolveRef = makeVarRefResolver(idToPath);
 
   for (const style of await figma.getLocalTextStylesAsync()) {
     const lh = style.lineHeight;
     const ls = style.letterSpacing;
     const bound = (style.boundVariables ?? {}) as Record<string, VariableAlias | undefined>;
 
-    // letterSpacing: variable ref 우선, 없으면 raw (부동소수점 보정)
+    // 모든 속성 ref를 병렬로 조회 (라이브러리 변수 fallback 포함)
+    const [fontFamilyRef, fontStyleRef, fontSizeRef, lsRef, lhRef] = await Promise.all([
+      resolveRef(bound["fontFamily"]),
+      resolveRef(bound["fontStyle"]),
+      resolveRef(bound["fontSize"]),
+      resolveRef(bound["letterSpacing"]),
+      resolveRef(bound["lineHeight"]),
+    ]);
+
     let letterSpacing: string | number;
-    const lsRef = varRef(bound["letterSpacing"]);
     if (lsRef) {
       letterSpacing = lsRef;
     } else if (ls.unit === "PERCENT") {
@@ -658,9 +678,7 @@ async function buildTextTokens(): Promise<TokenGroup> {
       letterSpacing = 0;
     }
 
-    // lineHeight: variable ref 우선, 없으면 raw (부동소수점 보정)
     let lineHeightValue: string | number;
-    const lhRef = varRef(bound["lineHeight"]);
     if (lhRef) {
       lineHeightValue = lhRef;
     } else if (lh.unit === "AUTO") {
@@ -672,9 +690,9 @@ async function buildTextTokens(): Promise<TokenGroup> {
     }
 
     const value: TypographyValue = {
-      fontFamily: varRef(bound["fontFamily"]) ?? style.fontName.family,
-      fontStyle: varRef(bound["fontStyle"]) ?? style.fontName.style,
-      fontSize: varRef(bound["fontSize"]) ?? style.fontSize,
+      fontFamily: fontFamilyRef ?? style.fontName.family,
+      fontStyle: fontStyleRef ?? style.fontName.style,
+      fontSize: fontSizeRef ?? style.fontSize,
       letterSpacing,
       lineHeight: lineHeightValue,
     };
