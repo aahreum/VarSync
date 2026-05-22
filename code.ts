@@ -23,6 +23,7 @@ const UI_MAX_HEIGHT = 800;
 interface TypographyValue {
   fontFamily: string | number;
   fontStyle: string | number;
+  fontWeight?: string | number;
   fontSize: string | number;
   letterSpacing: string | number;
   lineHeight: string | number;
@@ -658,9 +659,10 @@ async function buildTextTokens(): Promise<TokenGroup> {
     const bound = (style.boundVariables ?? {}) as Record<string, VariableAlias | undefined>;
 
     // 모든 속성 ref를 병렬로 조회 (라이브러리 변수 fallback 포함)
-    const [fontFamilyRef, fontStyleRef, fontSizeRef, lsRef, lhRef] = await Promise.all([
+    const [fontFamilyRef, fontStyleRef, fontWeightRef, fontSizeRef, lsRef, lhRef] = await Promise.all([
       resolveRef(bound["fontFamily"]),
       resolveRef(bound["fontStyle"]),
+      resolveRef(bound["fontWeight"]),
       resolveRef(bound["fontSize"]),
       resolveRef(bound["letterSpacing"]),
       resolveRef(bound["lineHeight"]),
@@ -692,6 +694,7 @@ async function buildTextTokens(): Promise<TokenGroup> {
     const value: TypographyValue = {
       fontFamily: fontFamilyRef ?? style.fontName.family,
       fontStyle: fontStyleRef ?? style.fontName.style,
+      ...(fontWeightRef !== undefined ? { fontWeight: fontWeightRef } : {}),
       fontSize: fontSizeRef ?? style.fontSize,
       letterSpacing,
       lineHeight: lineHeightValue,
