@@ -1,0 +1,14 @@
+{
+  "heading": {
+    "xl": {
+      "value": {
+        "fontFamily": "{font-family.default}",
+        "fontStyle": "7 Bold",
+        "fontSize": "{font-size.48}",
+        "letterSpacing": 0,
+        "lineHeight": "{160}"
+      },
+      "type": "typography"
+    }
+  }
+}
